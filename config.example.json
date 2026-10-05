@@ -1,0 +1,22 @@
+{
+  "schedule": "0 8 * * *",
+  "figmaToken": "figd_YOUR_FIGMA_TOKEN",
+  "jiraBaseUrl": "https://your-org.atlassian.net",
+  "jiraEmail": "you@example.com",
+  "jiraApiToken": "YOUR_JIRA_API_TOKEN",
+  "projects": [
+    {
+      "id": "replace-with-a-uuid",
+      "figmaFileKey": "YourFigmaFileKey",
+      "figmaUrl": "https://www.figma.com/design/YourFigmaFileKey/Your-File-Name",
+      "figmaFileName": "Your File Name",
+      "jiraIssueKey": "PROJ-123",
+      "mentionedUsers": [
+        {
+          "displayName": "Jane Dev",
+          "jiraAccountId": "accountid:xxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ]
+    }
+  ]
+}

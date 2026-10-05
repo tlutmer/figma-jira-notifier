@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Figma → Jira Notifier</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ========================================================= -->
+<!--  Header                                                    -->
+<!-- ========================================================= -->
+<header class="app-header">
+  <div>
+    <h1>📐 Figma → Jira Notifier</h1>
+    <div class="subtitle">Design change notifications for your frontend team</div>
+  </div>
+  <button class="btn-run" id="btnRunNow">▶ Run Now</button>
+</header>
+
+<main class="main">
+
+  <!-- Status bar -->
+  <div class="status-bar" id="statusBar">
+    <span>Last run: <strong id="lastRun">—</strong></span>
+    <span>Next scheduled: <strong id="nextRun">—</strong></span>
+    <span>Schedule: <strong id="scheduleDisplay">—</strong></span>
+  </div>
+
+  <!-- Run results -->
+  <div class="run-results" id="runResults" style="display:none;"></div>
+
+  <!-- ===================================================== -->
+  <!--  Projects                                              -->
+  <!-- ===================================================== -->
+  <div class="section" style="margin-top:20px;">
+    <div class="section-header">
+      <h2>Projects</h2>
+      <button class="btn-primary" id="btnAddProject">+ Add project</button>
+    </div>
+    <div class="section-body">
+      <div id="projectList" class="project-list">
+        <div class="empty-state">No projects configured yet. Add one to get started.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================== -->
+  <!--  Global settings                                       -->
+  <!-- ===================================================== -->
+  <div class="section">
+    <div class="section-header">
+      <h2>Global Settings</h2>
+    </div>
+    <div class="section-body">
+      <div id="settingsAlert" class="alert"></div>
+      <form id="settingsForm">
+        <div class="form-grid">
+          <div class="field">
+            <label for="figmaToken">Figma personal access token</label>
+            <input type="password" id="figmaToken" name="figmaToken" placeholder="figd_…" autocomplete="off" />
+          </div>
+          <div class="field">
+            <label for="schedule">Cron schedule</label>
+            <input type="text" id="schedule" name="schedule" placeholder="0 8 * * *" />
+          </div>
+          <div class="field">
+            <label for="jiraBaseUrl">Jira base URL</label>
+            <input type="text" id="jiraBaseUrl" name="jiraBaseUrl" placeholder="https://your-org.atlassian.net" />
+          </div>
+          <div class="field">
+            <label for="jiraEmail">Jira account email</label>
+            <input type="email" id="jiraEmail" name="jiraEmail" placeholder="you@example.com" />
+          </div>
+          <div class="field">
+            <label for="jiraApiToken">Jira API token</label>
+            <input type="password" id="jiraApiToken" name="jiraApiToken" placeholder="Your Jira API token" autocomplete="off" />
+          </div>
+        </div>
+        <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+          <button type="submit" class="btn-primary">Save settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</main>
+
+<!-- ========================================================= -->
+<!--  Add / Edit Project Modal                                  -->
+<!-- ========================================================= -->
+<div class="modal-backdrop" id="projectModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitle">Add project</h3>
+      <button class="modal-close" id="modalClose" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalAlert" class="alert"></div>
+      <input type="hidden" id="modalProjectId" />
+      <div class="form-grid full">
+        <div class="field">
+          <label for="modalFileKey">Figma URL</label>
+          <input type="text" id="modalFileKey" placeholder="https://www.figma.com/design/…" />
+        </div>
+        <input type="hidden" id="modalFileName" />
+        <div class="field">
+          <label for="modalJiraKey">Jira ticket URL</label>
+          <input type="text" id="modalJiraKey" placeholder="https://your-org.atlassian.net/browse/PROJ-123 or PROJ-123" />
+        </div>
+      </div>
+
+      <hr class="divider" />
+
+      <div class="label-row">
+        <span>Frontend developers to @mention</span>
+        <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
+      </div>
+      <div id="mentionRows"></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="modalCancel">Cancel</button>
+      <button type="button" class="btn-primary" id="modalSave">Save project</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

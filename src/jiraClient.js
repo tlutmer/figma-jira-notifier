@@ -1,0 +1,317 @@
+'use strict';
+
+const axios = require('axios');
+
+// ---------------------------------------------------------------------------
+// ADF helpers
+// ---------------------------------------------------------------------------
+
+function adfText(text, bold = false) {
+  const node = { type: 'text', text };
+  if (bold) node.marks = [{ type: 'strong' }];
+  return node;
+}
+
+function adfParagraph(...inlineNodes) {
+  return { type: 'paragraph', content: inlineNodes };
+}
+
+function adfBulletList(items) {
+  return {
+    type: 'bulletList',
+    content: items.map(item => ({
+      type: 'listItem',
+      content: [adfParagraph(...(Array.isArray(item) ? item : [adfText(item)]))]
+    }))
+  };
+}
+
+function adfHeading(level, text) {
+  return { type: 'heading', attrs: { level }, content: [adfText(text)] };
+}
+
+function adfMention(accountId, displayName) {
+  return {
+    type: 'mention',
+    attrs: { id: accountId, text: `@${displayName}` }
+  };
+}
+
+function adfRule() {
+  return { type: 'rule' };
+}
+
+// ---------------------------------------------------------------------------
+// Grouping helpers
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Human-readable label for a Figma node type. */
+function typeLabel(type) {
+  const map = {
+    FRAME: 'Frame', GROUP: 'Group', COMPONENT: 'Component',
+    COMPONENT_SET: 'Component set', INSTANCE: 'Instance',
+    TEXT: 'Text', RECTANGLE: 'Rectangle', ELLIPSE: 'Ellipse',
+    VECTOR: 'Vector', BOOLEAN_OPERATION: 'Boolean op', SECTION: 'Section'
+  };
+  return map[type] || type;
+}
+
+/**
+ * Detects "sweeping" changes — change descriptions shared by >= threshold nodes
+ * across the whole page. Returns { sweepingDescs, restEntries }.
+ */
+function partitionSweeping(entries, threshold = 3) {
+  const changeCount = new Map();
+  for (const entry of entries) {
+    for (const c of (entry.changes || [])) {
+      changeCount.set(c, (changeCount.get(c) || 0) + 1);
+    }
+  }
+  const sweepingDescs = new Set(
+    [...changeCount.entries()].filter(([, n]) => n >= threshold).map(([d]) => d)
+  );
+
+  const restEntries = entries.map(entry => ({
+    ...entry,
+    changes: (entry.changes || []).filter(c => !sweepingDescs.has(c))
+  })).filter(e => e.changes.length > 0);
+
+  return { sweepingDescs, restEntries };
+}
+
+// ---------------------------------------------------------------------------
+// Section builders
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the bullet rows for a set of added nodes:
+ *   • [TypeLabel] Name
+ */
+function addedBullets(nodes) {
+  return [...new Map(nodes.map(n => [n.id, n])).values()]
+    .map(n => [adfText(`${typeLabel(n.type)}: ${n.name}`)]);
+}
+
+/**
+ * Builds the bullet rows for a set of removed nodes.
+ */
+function removedBullets(nodes) {
+  return [...new Map(nodes.map(n => [n.id, n])).values()]
+    .map(n => [adfText(`${typeLabel(n.type)}: ${n.name}`)]);
+}
+
+/**
+ * Builds the bullet rows for a set of updated nodes:
+ *   • [TypeLabel] Name — change description
+ */
+function updatedBullets(nodes) {
+  const rows = [];
+  for (const node of nodes) {
+    for (const change of (node.changes || [])) {
+      rows.push([adfText(`${typeLabel(node.type)}: ${node.name} — ${change}`)]);
+    }
+  }
+  return rows;
+}
+
+/**
+ * Builds one "Screen: [frame]" block.
+ */
+function buildScreenBlock(frameName, addedNodes, removedNodes, updatedNodes) {
+  const content = [];
+  content.push(adfParagraph(adfText(`Screen: ${frameName}`, true)));
+
+  const bullets = [];
+  if (addedNodes.length > 0) {
+    bullets.push([adfText('Added', true)], ...addedBullets(addedNodes));
+  }
+  if (removedNodes.length > 0) {
+    bullets.push([adfText('Removed', true)], ...removedBullets(removedNodes));
+  }
+  if (updatedNodes.length > 0) {
+    bullets.push([adfText('Updated', true)], ...updatedBullets(updatedNodes));
+  }
+  if (bullets.length > 0) content.push(adfBulletList(bullets));
+
+  return content;
+}
+
+/**
+ * Builds the full page → sweeping → screen-by-screen changelog section.
+ *
+ * Output per page:
+ *   [Page heading]
+ *   Sweeping changes        ← only if ≥3 nodes share the same change desc
+ *   • Added   TypeLabel: Name
+ *   • Removed TypeLabel: Name
+ *   • Updated TypeLabel: Name — description
+ *   Screen: [Frame name]
+ *   • Added …
+ *   • Removed …
+ *   • Updated …
+ */
+function buildPageSections(added, removed, updated) {
+  const allPages = new Set([
+    ...added.map(n => n.pageName || 'Unknown page'),
+    ...removed.map(n => n.pageName || 'Unknown page'),
+    ...updated.map(n => n.pageName || 'Unknown page'),
+  ]);
+
+  const content = [];
+
+  for (const page of allPages) {
+    const pageAdded   = added.filter(n => (n.pageName || 'Unknown page') === page);
+    const pageRemoved = removed.filter(n => (n.pageName || 'Unknown page') === page);
+    const pageUpdated = updated.filter(n => (n.pageName || 'Unknown page') === page);
+
+    content.push(adfHeading(3, page));
+
+    // --- Sweeping changes ---
+    const { sweepingDescs, restEntries: localUpdated } = partitionSweeping(pageUpdated);
+
+    if (sweepingDescs.size > 0 || pageAdded.length > 0 || pageRemoved.length > 0) {
+      // Sweeping = changes that hit many nodes + all adds/removes at page level
+      // (adds/removes not inside a named frame go here too)
+      const noFrameAdded   = pageAdded.filter(n => !n.frameName);
+      const noFrameRemoved = pageRemoved.filter(n => !n.frameName);
+
+      const sweepingBullets = [];
+      if (noFrameAdded.length > 0) {
+        sweepingBullets.push([adfText('Added', true)], ...addedBullets(noFrameAdded));
+      }
+      if (noFrameRemoved.length > 0) {
+        sweepingBullets.push([adfText('Removed', true)], ...removedBullets(noFrameRemoved));
+      }
+      if (sweepingDescs.size > 0) {
+        // Collect all nodes affected by sweeping change descs
+        const sweepNodes = pageUpdated.filter(e =>
+          (e.changes || []).some(c => sweepingDescs.has(c))
+        ).map(e => ({ ...e, changes: (e.changes || []).filter(c => sweepingDescs.has(c)) }));
+        sweepingBullets.push([adfText('Updated', true)], ...updatedBullets(sweepNodes));
+      }
+
+      if (sweepingBullets.length > 0) {
+        content.push(adfParagraph(adfText('⚡ Sweeping changes', true)));
+        content.push(adfBulletList(sweepingBullets));
+      }
+    }
+
+    // --- Per-screen (frame) breakdown ---
+    const frameNames = new Set([
+      ...pageAdded.filter(n => n.frameName).map(n => n.frameName),
+      ...pageRemoved.filter(n => n.frameName).map(n => n.frameName),
+      ...localUpdated.filter(n => n.frameName).map(n => n.frameName),
+    ]);
+
+    for (const frame of frameNames) {
+      const frameAdded   = pageAdded.filter(n => n.frameName === frame);
+      const frameRemoved = pageRemoved.filter(n => n.frameName === frame);
+      const frameUpdated = localUpdated.filter(n => n.frameName === frame);
+      content.push(...buildScreenBlock(frame, frameAdded, frameRemoved, frameUpdated));
+    }
+
+    content.push(adfRule());
+  }
+
+  return content;
+}
+
+// ---------------------------------------------------------------------------
+// Main ADF builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the full ADF comment document for a diff result.
+ *
+ * @param {object}  diffResult        Output of differ.diffTrees()
+ * @param {string}  figmaFileKey
+ * @param {string}  runAt             ISO timestamp string
+ * @param {Array}   mentionedUsers    Array of { displayName, jiraAccountId }
+ * @param {string|null} snapshotDate  ISO timestamp of the baseline snapshot, or null
+ * @returns {object} ADF document
+ */
+function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate) {
+  const { added, removed, updated, totalChanges, pages } = diffResult;
+  const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
+
+  const headerContent = [adfText('📐 Figma Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
+
+  const mentionNodes = mentionedUsers.flatMap(u => [
+    adfMention(u.jiraAccountId, u.displayName),
+    adfText(' ')
+  ]);
+
+  // File row: filename as a clickable link when a URL is available
+  const fileNameNode = figmaUrl
+    ? { type: 'text', text: figmaFileName, marks: [{ type: 'link', attrs: { href: figmaUrl } }] }
+    : adfText(figmaFileName);
+  const fileRowNodes = [adfText('File: ', true), fileNameNode];
+
+  const adfContent = [
+    adfParagraph(...headerContent),
+    adfParagraph(...fileRowNodes),
+    adfParagraph(adfText('Pages: ', true), adfText(pagesLabel)),
+  ];
+
+  if (!snapshotDate) {
+    adfContent.push(adfParagraph(adfText('⚠️ No previous snapshot found. This is the first run — baseline saved, no diff to report.')));
+  }
+
+  adfContent.push(adfRule());
+
+  adfContent.push(...buildPageSections(added, removed, updated));
+
+  if (mentionNodes.length > 0) {
+    adfContent.push(adfRule());
+    adfContent.push(adfParagraph(adfText('Notifying: ', true), ...mentionNodes));
+  }
+
+  return {
+    version: 1,
+    type: 'doc',
+    content: adfContent
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Jira API call
+// ---------------------------------------------------------------------------
+
+/**
+ * Posts an ADF comment to a Jira issue.
+ *
+ * @param {string} jiraBaseUrl  e.g. "https://your-org.atlassian.net"
+ * @param {string} email        Jira account email
+ * @param {string} apiToken     Jira API token
+ * @param {string} issueKey     e.g. "PROJ-123"
+ * @param {object} commentAdf   ADF document object
+ * @returns {Promise<void>}
+ */
+async function postComment(jiraBaseUrl, email, apiToken, issueKey, commentAdf) {
+  const url = `${jiraBaseUrl}/rest/api/3/issue/${issueKey}/comment`;
+  const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
+
+  try {
+    await axios.post(
+      url,
+      { body: commentAdf },
+      {
+        headers: {
+          'Authorization': `Basic ${auth}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      }
+    );
+  } catch (err) {
+    const status = err.response ? err.response.status : 'network error';
+    const detail = err.response ? JSON.stringify(err.response.data) : err.message;
+    throw new Error(`Jira postComment failed for issue "${issueKey}" — ${status}: ${detail}`);
+  }
+}
+
+module.exports = { postComment, buildCommentAdf };
