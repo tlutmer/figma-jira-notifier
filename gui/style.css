@@ -159,14 +159,13 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ---- Mention rows ---- */
 .mention-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  display: flex;
   gap: 8px;
-  align-items: end;
+  align-items: center;
   margin-bottom: 8px;
 }
-.mention-row input { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: var(--font); }
-.mention-row button { padding: 7px 10px; }
+.mention-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: var(--font); }
+.mention-row button { padding: 7px 10px; flex-shrink: 0; }
 
 /* ---- Modal ---- */
 .modal-backdrop {

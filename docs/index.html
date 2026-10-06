@@ -122,8 +122,8 @@
     .empty-state { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 13px; }
 
     /* ── Mention rows ── */
-    .mention-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-bottom: 8px; }
-    .mention-row input { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: var(--font); }
+    .mention-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .mention-row input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: var(--font); }
 
     /* ── Run results ── */
     .run-results { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
@@ -635,10 +635,14 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
     adfContent.push({ type: 'rule' });
   }
 
-  const mentionNodes = (mentionedUsers || []).flatMap(u => [
-    { type: 'mention', attrs: { id: u.jiraAccountId, text: `@${u.displayName}` } },
-    { type: 'text', text: ' ' }
-  ]);
+  const mentionNodes = (mentionedUsers || []).flatMap(u => {
+    const email = typeof u === 'string' ? u : (u.email || u.jiraAccountId || u.displayName || '');
+    const display = typeof u === 'string' ? u.split('@')[0] : (u.displayName || (u.email ? u.email.split('@')[0] : email));
+    return [
+      { type: 'mention', attrs: { id: email, text: `@${display}` } },
+      { type: 'text', text: ' ' }
+    ];
+  });
 
   if (mentionNodes.length > 0) {
     adfContent.push({
@@ -870,7 +874,7 @@ function renderProjects() {
   }
   list.innerHTML = '';
   for (const p of projects) {
-    const mentions = (p.mentionedUsers || []).map(u => u.displayName).join(', ') || '';
+    const mentions = (p.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || '';
     const nameHtml = p.figmaUrl
       ? `<a href="${esc(p.figmaUrl)}" target="_blank" rel="noopener noreferrer" style="color:inherit;">${esc(p.figmaFileName || p.figmaFileKey)}</a>`
       : esc(p.figmaFileName || p.figmaFileKey);
@@ -955,16 +959,18 @@ function closeModal() {
 function renderMentionRows(users) {
   const c = document.getElementById('mentionRows');
   c.innerHTML = '';
-  const list = users.length ? users : [{ displayName: '', jiraAccountId: '' }];
-  for (const u of list) addMentionRow(c, u.displayName, u.jiraAccountId);
+  const list = (users && users.length) ? users : [''];
+  for (const u of list) {
+    const email = typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId || '');
+    addMentionRow(c, email);
+  }
 }
 
-function addMentionRow(container, displayName = '', jiraAccountId = '') {
+function addMentionRow(container, email = '') {
   const row = document.createElement('div');
   row.className = 'mention-row';
   row.innerHTML = `
-    <input type="text" placeholder="Display name" value="${esc(displayName)}" class="mention-name" />
-    <input type="text" placeholder="Jira account ID" value="${esc(jiraAccountId)}" class="mention-id" />
+    <input type="email" placeholder="developer@example.com" value="${esc(email)}" class="mention-email" />
     <button type="button" class="btn-danger" title="Remove" style="padding:7px 10px;">✕</button>`;
   row.querySelector('button').addEventListener('click', () => row.remove());
   container.appendChild(row);
@@ -994,11 +1000,11 @@ document.getElementById('modalSave').addEventListener('click', () => {
   }
 
   const mentionedUsers = [...document.querySelectorAll('#mentionRows .mention-row')]
-    .map(row => ({
-      displayName:   row.querySelector('.mention-name').value.trim(),
-      jiraAccountId: row.querySelector('.mention-id').value.trim(),
-    }))
-    .filter(u => u.displayName && u.jiraAccountId);
+    .map(row => {
+      const email = row.querySelector('.mention-email').value.trim();
+      return email ? { email, displayName: email.split('@')[0], jiraAccountId: email } : null;
+    })
+    .filter(Boolean);
 
   const projectId = document.getElementById('modalProjectId').value;
   const newProject = {

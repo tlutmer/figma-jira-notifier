@@ -30,10 +30,18 @@ function adfHeading(level, text) {
   return { type: 'heading', attrs: { level }, content: [adfText(text)] };
 }
 
-function adfMention(accountId, displayName) {
+function adfMention(user) {
+  if (typeof user === 'string') {
+    return {
+      type: 'mention',
+      attrs: { id: user, text: `@${user.split('@')[0]}` }
+    };
+  }
+  const id = user.jiraAccountId || user.email || user.displayName || '';
+  const text = user.displayName ? `@${user.displayName}` : (user.email ? `@${user.email.split('@')[0]}` : `@${id}`);
   return {
     type: 'mention',
-    attrs: { id: accountId, text: `@${displayName}` }
+    attrs: { id, text }
   };
 }
 
@@ -241,7 +249,7 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
   const headerContent = [adfText('📐 Figma Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
 
   const mentionNodes = mentionedUsers.flatMap(u => [
-    adfMention(u.jiraAccountId, u.displayName),
+    adfMention(u),
     adfText(' ')
   ]);
 
