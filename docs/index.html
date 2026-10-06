@@ -200,6 +200,11 @@
 
 <main class="main">
 
+  <!-- ── Info banner ── -->
+  <div class="info-banner" id="hostedNotice" style="display:none;">
+    <strong>Hosted Version:</strong> When opened on GitHub Pages, diffs run in-browser and require Jira CORS or a local server. For seamless automated background runs, clone the repo and run <code>npm start</code> (served at <code>http://localhost:3000</code>).
+  </div>
+
   <!-- ── Status bar ── -->
   <div class="status-bar" id="statusBar">
     <span>Last run: <strong id="lastRun">—</strong></span>
@@ -682,9 +687,15 @@ async function runAllProjectsPipeline() {
   const results = [];
   for (const project of projects) {
     try {
-      const res = await fetch(`https://api.figma.com/v1/files/${project.figmaFileKey}?geometry=omit&depth=3`, {
-        headers: { 'X-Figma-Token': config.figmaToken }
-      });
+      let res;
+      try {
+        res = await fetch(`https://api.figma.com/v1/files/${project.figmaFileKey}?geometry=omit&depth=3`, {
+          headers: { 'X-Figma-Token': config.figmaToken }
+        });
+      } catch (fetchErr) {
+        throw new Error(`Network/CORS error accessing Figma API from browser. Please run locally via npm start: ${fetchErr.message}`);
+      }
+
       if (!res.ok) {
         throw new Error(`Figma API error (${res.status}): ${await res.text()}`);
       }
@@ -728,17 +739,21 @@ async function runAllProjectsPipeline() {
 
       // Post to Jira if configured
       if (config.jiraBaseUrl && config.jiraEmail && config.jiraApiToken && project.jiraIssueKey) {
-        const jiraRes = await fetch(`${config.jiraBaseUrl.replace(/\/$/, '')}/rest/api/3/issue/${project.jiraIssueKey}/comment`, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${config.jiraEmail}:${config.jiraApiToken}`),
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ body: adf })
-        });
-        if (!jiraRes.ok) {
-          throw new Error(`Jira API error (${jiraRes.status}): ${await jiraRes.text()}`);
+        try {
+          const jiraRes = await fetch(`${config.jiraBaseUrl.replace(/\/$/, '')}/rest/api/3/issue/${project.jiraIssueKey}/comment`, {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Basic ' + btoa(`${config.jiraEmail}:${config.jiraApiToken}`),
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({ body: adf })
+          });
+          if (!jiraRes.ok) {
+            throw new Error(`Jira API error (${jiraRes.status}): ${await jiraRes.text()}`);
+          }
+        } catch (jiraErr) {
+          throw new Error(`Jira request failed (browser CORS blocks direct Jira API calls; please use http://localhost:3000): ${jiraErr.message}`);
         }
       }
 
@@ -1038,6 +1053,10 @@ document.getElementById('btnAddMention').addEventListener('click', () => {
 });
 
 /* ── Init ── */
+if (!window.location.origin.includes('localhost') && !window.location.origin.includes('127.0.0.1')) {
+  const notice = document.getElementById('hostedNotice');
+  if (notice) notice.style.display = 'block';
+}
 render();
 setupScheduleTimer();
 </script>
