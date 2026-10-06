@@ -44,7 +44,7 @@ app.get('*', (req, res) => {
 // Start
 // ---------------------------------------------------------------------------
 app.listen(PORT, () => {
-  console.log(`\n🚀 Figma → Jira Notifier running at http://localhost:${PORT}\n`);
+  console.log(`\nDesign Change Log running at http://localhost:${PORT}\n`);
   scheduler.start();
 });
 

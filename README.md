@@ -1,4 +1,4 @@
-# Figma → Jira Notifier
+# Design Change Log
 
 A cross-platform tool that monitors Figma files for design changes and posts structured changelog comments to linked Jira tickets, @mentioning your frontend development team.
 
@@ -8,7 +8,7 @@ A cross-platform tool that monitors Figma files for design changes and posts str
 
 The hosted GUI is the full interactive configuration interface. Use it to:
 
-- Add, edit, and remove Figma → Jira project mappings
+- Add, edit, and remove Figma -> Jira project mappings
 - Configure your Figma personal access token, Jira base URL, email, and API token
 - Set the cron schedule for automated diff runs
 - Paste a full Figma URL (file key is extracted automatically) and a full Jira ticket URL or bare key
@@ -18,8 +18,8 @@ All configuration is persisted in your browser's `localStorage` and survives pag
 
 ## Features
 
-- 🌐 Hosted GUI — configure from any browser, no install needed
-- 🔄 Scheduled (cron) or on-demand diff runs
-- 📐 Structured ADF changelog comments posted to Jira
-- 👥 @mentions configured frontend developers on each notification
-- 📦 Single self-contained binary — no Node.js or npm required on target machines
+- Hosted GUI — configure from any browser, no install needed
+- Scheduled (cron) or on-demand diff runs
+- Structured ADF changelog comments posted to Jira
+- @mentions configured frontend developers on each notification
+- Single self-contained binary — no Node.js or npm required on target machines

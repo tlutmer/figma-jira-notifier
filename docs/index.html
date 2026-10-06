@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Figma → Jira Notifier</title>
+  <title>Design Change Log</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -40,13 +40,27 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 16px;
       position: sticky;
       top: 0;
       z-index: 10;
     }
+    .app-header-left { display: flex; flex-direction: column; }
     .app-header-left h1 { font-size: 15px; font-weight: 700; }
     .app-header-left .subtitle { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .app-header-center {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .app-header-center a {
+      color: var(--text);
+      font-weight: 500;
+      text-decoration: underline;
+    }
+    .app-header-center a:hover {
+      color: var(--accent);
+    }
     .app-header-right { display: flex; align-items: center; gap: 10px; }
 
     /* ── Main ── */
@@ -260,16 +274,16 @@
 <!-- ═══════════════════ Header ═══════════════════ -->
 <header class="app-header">
   <div class="app-header-left">
-    <h1>📐 Figma → Jira Notifier</h1>
-    <div class="subtitle">Design change notifications for your frontend team</div>
+    <h1>Design Change Log</h1>
+    <div class="subtitle">Design notifications for your team</div>
+  </div>
+  <div class="app-header-center">
+    Built by <a href="slack://user?team=T01234567&id=W_AMAYA_MAIL" target="_blank" rel="noopener noreferrer">@Amaya Mail</a>, <a href="slack://user?team=T01234567&id=W_JONATHAN_MONAHAN" target="_blank" rel="noopener noreferrer">@Jonathan Monahan</a>, and <a href="slack://user?team=T01234567&id=W_TRENT_LUTMER" target="_blank" rel="noopener noreferrer">@TrentLutmer</a>
   </div>
   <div class="app-header-right">
-    <button class="btn-secondary" id="btnOpenSettings">⚙️ Settings</button>
-    <button class="btn-run" id="btnRunNow">▶ Run Now</button>
-    <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener" class="gh-link">
-      <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-      GitHub
-    </a>
+    <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener" class="btn-secondary" style="text-decoration:none;">Github Repo</a>
+    <button class="btn-secondary" id="btnOpenSettings">Settings</button>
+    <button class="btn-run" id="btnRunNow">Run Now</button>
   </div>
 </header>
 
@@ -294,11 +308,11 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px;">
     <div class="tabs-nav" style="margin-top:0; margin-bottom:0; flex:1;">
       <button class="tab-btn active" id="tabBtnConnected" data-tab="tabConnected">
-        <span>🔗 Connected Projects</span>
+        <span>Connected Projects</span>
         <span class="badge" id="connectedCount">0</span>
       </button>
       <button class="tab-btn" id="tabBtnChanges" data-tab="tabChanges">
-        <span>⚡ Recent Changes & Activity</span>
+        <span>Recent Changes & Activity</span>
         <span class="badge" id="changesCount">0</span>
       </button>
     </div>
@@ -313,7 +327,7 @@
     <div class="tab-pane active" id="tabConnected">
       <div class="section">
         <div class="section-header">
-          <h2>🔗 Connected Projects</h2>
+          <h2>Connected Projects</h2>
           <span class="badge" id="connectedCountBadge">0 configured</span>
         </div>
         <div class="section-body">
@@ -328,7 +342,7 @@
     <div class="tab-pane" id="tabChanges">
       <div class="section">
         <div class="section-header">
-          <h2>⚡ Recent Changes & Activity</h2>
+          <h2>Recent Changes & Activity</h2>
           <span class="badge" id="changesCountBadge">0</span>
         </div>
         <div class="section-body">
@@ -411,7 +425,7 @@
       <div class="label-row" style="margin-bottom:8px;">
         <span>Frontend developers to @mention</span>
         <div style="display:flex; gap:6px;">
-          <button type="button" class="btn-secondary" id="btnSyncWatchers" style="font-size:12px; padding:4px 10px;" title="Fetch all watchers on this Jira ticket">👥 Fetch watchers</button>
+          <button type="button" class="btn-secondary" id="btnSyncWatchers" style="font-size:12px; padding:4px 10px;" title="Fetch all watchers on this Jira ticket">Fetch watchers</button>
           <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
         </div>
       </div>
@@ -643,7 +657,7 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
   const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
 
   const adfContent = [
-    { type: 'paragraph', content: [{ type: 'text', text: '📐 Figma Changelog — ' }, { type: 'text', text: `${totalChanges} Changes`, marks: [{ type: 'strong' }] }] },
+    { type: 'paragraph', content: [{ type: 'text', text: 'Design Changelog — ' }, { type: 'text', text: `${totalChanges} Changes`, marks: [{ type: 'strong' }] }] },
     {
       type: 'paragraph',
       content: [
@@ -655,7 +669,7 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
   ];
 
   if (!snapshotDate) {
-    adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: '⚠️ No previous snapshot found. This is the first run — baseline saved, no diff to report.' }] });
+    adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: 'No previous snapshot found. This is the first run — baseline saved, no diff to report.' }] });
   }
 
   adfContent.push({ type: 'rule' });
@@ -705,7 +719,7 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
       }
 
       if (sweepingBullets.length > 0) {
-        adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: '⚡ Sweeping changes', marks: [{ type: 'strong' }] }] });
+        adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: 'Sweeping changes', marks: [{ type: 'strong' }] }] });
         adfContent.push({
           type: 'bulletList',
           content: sweepingBullets.map(b => ({ type: 'listItem', content: [{ type: 'paragraph', content: b }] }))
@@ -931,7 +945,7 @@ async function executeRun(isAutomatic = false) {
   const btn = document.getElementById('btnRunNow');
   btn.disabled = true;
   btn.classList.add('running');
-  btn.textContent = isAutomatic ? '⏳ Auto-running…' : '⏳ Running…';
+  btn.textContent = isAutomatic ? 'Auto-running...' : 'Running...';
 
   const resultsEl = document.getElementById('runResults');
   resultsEl.style.display = 'none';
@@ -947,11 +961,11 @@ async function executeRun(isAutomatic = false) {
     updateStatusBar();
   } catch (err) {
     resultsEl.style.display = 'flex';
-    resultsEl.innerHTML = `<div class="result-row error"><span class="result-icon">❌</span><span>${esc(err.message)}</span></div>`;
+    resultsEl.innerHTML = `<div class="result-row error"><span>${esc(err.message)}</span></div>`;
   } finally {
     btn.disabled = false;
     btn.classList.remove('running');
-    btn.textContent = '▶ Run Now';
+    btn.textContent = 'Run Now';
   }
 }
 
@@ -959,11 +973,10 @@ function renderRunResults(results) {
   const el = document.getElementById('runResults');
   if (!results || results.length === 0) {
     el.style.display = 'flex';
-    el.innerHTML = '<div class="result-row no_changes"><span class="result-icon">ℹ️</span><span>No projects configured or run complete.</span></div>';
+    el.innerHTML = '<div class="result-row no_changes"><span>No projects configured or run complete.</span></div>';
     return;
   }
 
-  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
   const labels = {
     posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} posted to Jira`,
     no_changes: () => 'No changes detected',
@@ -973,7 +986,6 @@ function renderRunResults(results) {
 
   el.innerHTML = results.map(r => `
     <div class="result-row ${r.status}">
-      <span class="result-icon">${icons[r.status] || '•'}</span>
       <div>
         <strong>${esc(r.figmaFileName || r.projectId)}</strong>
         <div class="result-detail">${esc((labels[r.status] || (() => r.status))(r))}</div>
@@ -1044,9 +1056,9 @@ function renderProjects() {
     card.className = 'project-card';
     card.innerHTML = `
       <div class="project-card-info">
-        <div class="name">📐 ${nameHtml}</div>
-        <div class="meta">Figma: <code>${esc(p.figmaFileKey)}</code> → Jira: <strong>${esc(p.jiraIssueKey)}</strong></div>
-        <div class="mentions">👥 ${esc(mentions)}</div>
+        <div class="name">${nameHtml}</div>
+        <div class="meta">Figma: <code>${esc(p.figmaFileKey)}</code> -> Jira: <strong>${esc(p.jiraIssueKey)}</strong></div>
+        <div class="mentions">Mentions: ${esc(mentions)}</div>
       </div>
       <div class="project-card-actions">
         <button class="btn-secondary" onclick="openEditModal('${p.id}')">Edit</button>
@@ -1073,14 +1085,13 @@ function renderChangesColumn() {
         <div class="project-card-info">
           <div class="name">${esc(p.figmaFileName || p.figmaFileKey)}</div>
           <div class="meta">Jira: <strong>${esc(p.jiraIssueKey)}</strong></div>
-          <span class="change-status no-changes">💤 Ready — pending next diff run</span>
+          <span class="change-status no-changes">Ready - pending next diff run</span>
         </div>
       </div>
     `).join('');
     return;
   }
 
-  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
   const badgeClasses = { posted: 'has-changes', no_changes: 'no-changes', first_run: 'baseline', error: 'has-changes' };
   const labels = {
     posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} detected & posted to Jira`,
@@ -1096,7 +1107,7 @@ function renderChangesColumn() {
   changesEl.innerHTML = results.map(r => `
     <div class="project-card">
       <div class="project-card-info">
-        <div class="name">${icons[r.status] || '•'} ${esc(r.figmaFileName || r.projectId)}</div>
+        <div class="name">${esc(r.figmaFileName || r.projectId)}</div>
         <span class="change-status ${badgeClasses[r.status] || 'no-changes'}">${esc((labels[r.status] || (() => r.status))(r))}</span>
       </div>
     </div>
@@ -1277,7 +1288,7 @@ document.getElementById('btnSyncWatchers').addEventListener('click', async () =>
 
   const btn = document.getElementById('btnSyncWatchers');
   btn.disabled = true;
-  btn.textContent = '⏳ Fetching…';
+  btn.textContent = 'Fetching...';
 
   try {
     let watchers = [];
@@ -1341,7 +1352,7 @@ document.getElementById('btnSyncWatchers').addEventListener('click', async () =>
     showAlert('modalAlert', 'error', `Failed to fetch watchers: ${err.message}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = '👥 Fetch watchers';
+    btn.textContent = 'Fetch watchers';
   }
 });
 

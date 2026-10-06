@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Figma → Jira Notifier</title>
+  <title>Design Change Log</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,13 +12,17 @@
 <!--  Header                                                    -->
 <!-- ========================================================= -->
 <header class="app-header">
-  <div>
-    <h1>📐 Figma → Jira Notifier</h1>
-    <div class="subtitle">Design change notifications for your frontend team</div>
+  <div class="app-header-left">
+    <h1>Design Change Log</h1>
+    <div class="subtitle">Design notifications for your team</div>
+  </div>
+  <div class="app-header-center">
+    Built by <a href="slack://user?team=T01234567&id=W_AMAYA_MAIL" target="_blank" rel="noopener noreferrer">@Amaya Mail</a>, <a href="slack://user?team=T01234567&id=W_JONATHAN_MONAHAN" target="_blank" rel="noopener noreferrer">@Jonathan Monahan</a>, and <a href="slack://user?team=T01234567&id=W_TRENT_LUTMER" target="_blank" rel="noopener noreferrer">@TrentLutmer</a>
   </div>
   <div class="header-actions">
-    <button class="btn-secondary" id="btnOpenSettings">⚙️ Settings</button>
-    <button class="btn-run" id="btnRunNow">▶ Run Now</button>
+    <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="display:inline-flex; align-items:center; text-decoration:none;">Github Repo</a>
+    <button class="btn-secondary" id="btnOpenSettings">Settings</button>
+    <button class="btn-run" id="btnRunNow">Run Now</button>
   </div>
 </header>
 
@@ -38,11 +42,11 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px;">
     <div class="tabs-nav" style="margin-top:0; margin-bottom:0; flex:1;">
       <button class="tab-btn active" id="tabBtnConnected" data-tab="tabConnected">
-        <span>🔗 Connected Projects</span>
+        <span>Connected Projects</span>
         <span class="badge" id="connectedCount">0</span>
       </button>
       <button class="tab-btn" id="tabBtnChanges" data-tab="tabChanges">
-        <span>⚡ Recent Changes & Activity</span>
+        <span>Recent Changes & Activity</span>
         <span class="badge" id="changesCount">0</span>
       </button>
     </div>
@@ -59,7 +63,7 @@
     <div class="tab-pane active" id="tabConnected">
       <div class="section">
         <div class="section-header">
-          <h2>🔗 Connected Projects</h2>
+          <h2>Connected Projects</h2>
           <span class="badge" id="connectedCountBadge">0 configured</span>
         </div>
         <div class="section-body">
@@ -74,7 +78,7 @@
     <div class="tab-pane" id="tabChanges">
       <div class="section">
         <div class="section-header">
-          <h2>⚡ Recent Changes & Activity</h2>
+          <h2>Recent Changes & Activity</h2>
           <span class="badge" id="changesCountBadge">0</span>
         </div>
         <div class="section-body">
@@ -160,7 +164,7 @@
       <div class="label-row">
         <span>Frontend developers to @mention</span>
         <div style="display:flex; gap:6px;">
-          <button type="button" class="btn-secondary" id="btnSyncWatchers" style="font-size:12px; padding:4px 10px;" title="Fetch all watchers on this Jira ticket">👥 Fetch watchers</button>
+          <button type="button" class="btn-secondary" id="btnSyncWatchers" style="font-size:12px; padding:4px 10px;" title="Fetch all watchers on this Jira ticket">Fetch watchers</button>
           <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
         </div>
       </div>

@@ -203,7 +203,7 @@ function buildPageSections(added, removed, updated) {
       }
 
       if (sweepingBullets.length > 0) {
-        content.push(adfParagraph(adfText('⚡ Sweeping changes', true)));
+        content.push(adfParagraph(adfText('Sweeping changes', true)));
         content.push(adfBulletList(sweepingBullets));
       }
     }
@@ -246,7 +246,7 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
   const { added, removed, updated, totalChanges, pages } = diffResult;
   const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
 
-  const headerContent = [adfText('📐 Figma Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
+  const headerContent = [adfText('Design Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
 
   const mentionNodes = mentionedUsers.flatMap(u => [
     adfMention(u),
@@ -266,7 +266,7 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
   ];
 
   if (!snapshotDate) {
-    adfContent.push(adfParagraph(adfText('⚠️ No previous snapshot found. This is the first run — baseline saved, no diff to report.')));
+    adfContent.push(adfParagraph(adfText('No previous snapshot found. This is the first run — baseline saved, no diff to report.')));
   }
 
   adfContent.push(adfRule());

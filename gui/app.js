@@ -1,5 +1,5 @@
 /* ============================================================
-   Figma → Jira Notifier — GUI application logic
+   Design Change Log — GUI application logic
    ============================================================ */
 
 'use strict';
@@ -183,9 +183,9 @@ function renderProjects() {
     card.className = 'project-card';
     card.innerHTML = `
       <div class="project-card-info">
-        <div class="name">📐 ${escHtml(project.figmaFileName || project.figmaFileKey)}</div>
-        <div class="meta">Figma: <code>${escHtml(project.figmaFileKey)}</code> → Jira: <strong>${escHtml(project.jiraIssueKey)}</strong></div>
-        <div class="mentions">👥 ${escHtml(mentions)}</div>
+        <div class="name">${escHtml(project.figmaFileName || project.figmaFileKey)}</div>
+        <div class="meta">Figma: <code>${escHtml(project.figmaFileKey)}</code> -> Jira: <strong>${escHtml(project.jiraIssueKey)}</strong></div>
+        <div class="mentions">Mentions: ${escHtml(mentions)}</div>
       </div>
       <div class="project-card-actions">
         <button class="btn-secondary" onclick="openEditModal('${project.id}')">Edit</button>
@@ -213,14 +213,13 @@ function renderChangesColumn() {
         <div class="project-card-info">
           <div class="name">${escHtml(p.figmaFileName || p.figmaFileKey)}</div>
           <div class="meta">Jira: <strong>${escHtml(p.jiraIssueKey)}</strong></div>
-          <span class="change-status no-changes">💤 Ready — pending next diff run</span>
+          <span class="change-status no-changes">Ready - pending next diff run</span>
         </div>
       </div>
     `).join('');
     return;
   }
 
-  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
   const badgeClasses = { posted: 'has-changes', no_changes: 'no-changes', first_run: 'baseline', error: 'has-changes' };
   const labels = {
     posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} detected & posted to Jira`,
@@ -236,7 +235,7 @@ function renderChangesColumn() {
   changesEl.innerHTML = lastRunResults.map(r => `
     <div class="project-card">
       <div class="project-card-info">
-        <div class="name">${icons[r.status] || '•'} ${escHtml(r.figmaFileName || r.projectId)}</div>
+        <div class="name">${escHtml(r.figmaFileName || r.projectId)}</div>
         <span class="change-status ${badgeClasses[r.status] || 'no-changes'}">${escHtml((labels[r.status] || (() => r.status))(r))}</span>
       </div>
     </div>
@@ -307,7 +306,7 @@ document.getElementById('btnRunNow').addEventListener('click', async () => {
   const btn = document.getElementById('btnRunNow');
   btn.disabled = true;
   btn.classList.add('running');
-  btn.textContent = '⏳ Running…';
+  btn.textContent = 'Running...';
 
   const resultsEl = document.getElementById('runResults');
   resultsEl.style.display = 'none';
@@ -322,11 +321,11 @@ document.getElementById('btnRunNow').addEventListener('click', async () => {
     updateStatusBar();
   } catch (err) {
     resultsEl.style.display = 'flex';
-    resultsEl.innerHTML = `<div class="result-row error"><span class="result-icon">❌</span><span>${escHtml(err.message)}</span></div>`;
+    resultsEl.innerHTML = `<div class="result-row error"><span>${escHtml(err.message)}</span></div>`;
   } finally {
     btn.disabled = false;
     btn.classList.remove('running');
-    btn.textContent = '▶ Run Now';
+    btn.textContent = 'Run Now';
   }
 });
 
@@ -334,11 +333,10 @@ function renderRunResults(results) {
   const el = document.getElementById('runResults');
   if (!results || results.length === 0) {
     el.style.display = 'flex';
-    el.innerHTML = '<div class="result-row no_changes"><span class="result-icon">ℹ️</span><span>No projects configured.</span></div>';
+    el.innerHTML = '<div class="result-row no_changes"><span>No projects configured.</span></div>';
     return;
   }
 
-  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
   const labels = {
     posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} posted to Jira`,
     no_changes: () => 'No changes detected',
@@ -348,7 +346,6 @@ function renderRunResults(results) {
 
   el.innerHTML = results.map(r => `
     <div class="result-row ${r.status}">
-      <span class="result-icon">${icons[r.status] || '•'}</span>
       <div>
         <strong>${escHtml(r.figmaFileName || r.projectId)}</strong>
         <div class="result-detail">${escHtml((labels[r.status] || (() => r.status))(r))}</div>
@@ -452,7 +449,7 @@ document.getElementById('btnSyncWatchers').addEventListener('click', async () =>
 
   const btn = document.getElementById('btnSyncWatchers');
   btn.disabled = true;
-  btn.textContent = '⏳ Fetching…';
+  btn.textContent = 'Fetching...';
 
   try {
     const data = await apiGet(`/api/jira/watchers?issueKey=${encodeURIComponent(issueKey)}`);
@@ -491,7 +488,7 @@ document.getElementById('btnSyncWatchers').addEventListener('click', async () =>
     showAlert('modalAlert', 'error', `Failed to fetch watchers: ${err.message}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = '👥 Fetch watchers';
+    btn.textContent = 'Fetch watchers';
   }
 });
 
