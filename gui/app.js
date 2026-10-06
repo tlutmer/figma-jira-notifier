@@ -150,7 +150,7 @@ function renderProjects() {
 
   list.innerHTML = '';
   for (const project of projects) {
-    const mentions = (project.mentionedUsers || []).map(u => u.displayName).join(', ') || 'No developers configured';
+    const mentions = (project.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || 'No developers configured';
     const card = document.createElement('div');
     card.className = 'project-card';
     card.innerHTML = `
@@ -316,21 +316,21 @@ document.getElementById('projectModal').addEventListener('click', e => {
 function renderMentionRows(users) {
   const container = document.getElementById('mentionRows');
   container.innerHTML = '';
-  if (users.length === 0) {
+  if (!users || users.length === 0) {
     addMentionRow(container);
   } else {
     for (const u of users) {
-      addMentionRow(container, u.displayName, u.jiraAccountId);
+      const email = typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId || '');
+      addMentionRow(container, email);
     }
   }
 }
 
-function addMentionRow(container, displayName = '', jiraAccountId = '') {
+function addMentionRow(container, email = '') {
   const row = document.createElement('div');
   row.className = 'mention-row';
   row.innerHTML = `
-    <input type="text" placeholder="Display name" value="${escHtml(displayName)}" class="mention-name" />
-    <input type="text" placeholder="Jira account ID" value="${escHtml(jiraAccountId)}" class="mention-id" />
+    <input type="email" placeholder="developer@example.com" value="${escHtml(email)}" class="mention-email" />
     <button type="button" class="btn-danger" title="Remove">✕</button>
   `;
   row.querySelector('button').addEventListener('click', () => row.remove());
@@ -357,11 +357,11 @@ document.getElementById('modalSave').addEventListener('click', async () => {
 
   const mentionRows = document.querySelectorAll('#mentionRows .mention-row');
   const mentionedUsers = [...mentionRows]
-    .map(row => ({
-      displayName: row.querySelector('.mention-name').value.trim(),
-      jiraAccountId: row.querySelector('.mention-id').value.trim()
-    }))
-    .filter(u => u.displayName && u.jiraAccountId);
+    .map(row => {
+      const email = row.querySelector('.mention-email').value.trim();
+      return email ? { email, displayName: email.split('@')[0], jiraAccountId: email } : null;
+    })
+    .filter(Boolean);
 
   const projectId = document.getElementById('modalProjectId').value;
   const newProject = {
