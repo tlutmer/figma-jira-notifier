@@ -657,21 +657,21 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
 /* ── Runner Pipeline (Works with local API or direct browser fetch) ── */
 async function runAllProjectsPipeline() {
   // If served from backend server, use backend /api/run
-  try {
+  if (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')) {
     const res = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({})
     });
-    if (res.ok) {
-      const data = await res.json();
-      return data.results || [];
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Server run failed (${res.status})`);
     }
-  } catch {
-    // Fall back to client-side run
+    const data = await res.json();
+    return data.results || [];
   }
 
-  // Client-side run using tokens stored in localStorage
+  // Client-side run (for GitHub Pages static host)
   const projects = config.projects || [];
   if (projects.length === 0) return [];
 
@@ -682,7 +682,7 @@ async function runAllProjectsPipeline() {
   const results = [];
   for (const project of projects) {
     try {
-      const res = await fetch(`https://api.figma.com/v1/files/${project.figmaFileKey}`, {
+      const res = await fetch(`https://api.figma.com/v1/files/${project.figmaFileKey}?geometry=omit&depth=3`, {
         headers: { 'X-Figma-Token': config.figmaToken }
       });
       if (!res.ok) {
