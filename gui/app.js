@@ -137,22 +137,42 @@ function updateStatusBar() {
 }
 
 // ---------------------------------------------------------------------------
-// Project list rendering (Two columns: Connected & Recent Changes / Status)
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const targetTabId = btn.getAttribute('data-tab');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+    btn.classList.add('active');
+    const targetPane = document.getElementById(targetTabId);
+    if (targetPane) targetPane.classList.add('active');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Project list rendering (Tabs: Connected & Recent Changes / Activity)
 // ---------------------------------------------------------------------------
 function renderProjects() {
   const connectedEl = document.getElementById('connectedList');
   const changesEl = document.getElementById('changesList');
   const connectedCountEl = document.getElementById('connectedCount');
+  const connectedCountBadgeEl = document.getElementById('connectedCountBadge');
   const changesCountEl = document.getElementById('changesCount');
+  const changesCountBadgeEl = document.getElementById('changesCountBadge');
 
   const projects = config.projects || [];
   if (connectedCountEl) connectedCountEl.textContent = projects.length;
+  if (connectedCountBadgeEl) connectedCountBadgeEl.textContent = `${projects.length} configured`;
 
   // 1. Render Connected Projects list
   if (projects.length === 0) {
     connectedEl.innerHTML = '<div class="empty-state">No connected projects configured yet. Add one to get started.</div>';
     changesEl.innerHTML = '<div class="empty-state">No monitored projects.</div>';
     if (changesCountEl) changesCountEl.textContent = '0';
+    if (changesCountBadgeEl) changesCountBadgeEl.textContent = '0';
     return;
   }
 
@@ -175,17 +195,19 @@ function renderProjects() {
     connectedEl.appendChild(card);
   }
 
-  // 2. Render Recent Changes / Status column
+  // 2. Render Recent Changes / Status tab
   renderChangesColumn();
 }
 
 function renderChangesColumn() {
   const changesEl = document.getElementById('changesList');
   const changesCountEl = document.getElementById('changesCount');
+  const changesCountBadgeEl = document.getElementById('changesCountBadge');
   const projects = config.projects || [];
 
   if (!lastRunResults || lastRunResults.length === 0) {
     if (changesCountEl) changesCountEl.textContent = projects.length;
+    if (changesCountBadgeEl) changesCountBadgeEl.textContent = `${projects.length} pending`;
     changesEl.innerHTML = projects.map(p => `
       <div class="project-card">
         <div class="project-card-info">
@@ -208,7 +230,8 @@ function renderChangesColumn() {
   };
 
   const activeChanges = lastRunResults.filter(r => r.status === 'posted').length;
-  if (changesCountEl) changesCountEl.textContent = `${activeChanges} changed / ${lastRunResults.length} total`;
+  if (changesCountEl) changesCountEl.textContent = activeChanges;
+  if (changesCountBadgeEl) changesCountBadgeEl.textContent = `${activeChanges} changed / ${lastRunResults.length} total`;
 
   changesEl.innerHTML = lastRunResults.map(r => `
     <div class="project-card">

@@ -50,17 +50,66 @@
     .app-header-right { display: flex; align-items: center; gap: 10px; }
 
     /* ── Main ── */
-    .main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
+    .main { max-width: 1200px; margin: 0 auto; padding: 28px 24px 64px; }
 
-    /* ── Projects Grid ── */
-    .projects-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+    /* ── Tabs navigation ── */
+    .tabs-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
       margin-top: 16px;
+      margin-bottom: 20px;
     }
-    @media (max-width: 768px) {
-      .projects-grid { grid-template-columns: 1fr; }
+
+    .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--muted);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-bottom: -1px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+      background: rgba(0, 0, 0, 0.02);
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .tab-btn .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--border);
+      color: var(--muted);
+    }
+
+    .tab-btn.active .badge {
+      background: #edf5ff;
+      color: var(--accent);
+    }
+
+    .tab-pane {
+      display: none;
+    }
+
+    .tab-pane.active {
+      display: block;
     }
 
     /* ── Status bar ── */
@@ -241,36 +290,51 @@
   <!-- ── Run results ── -->
   <div class="run-results" id="runResults" style="display:none;"></div>
 
-  <!-- Action Bar -->
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:12px;">
-    <h2 style="font-size:15px; font-weight:600;">Monitored Projects</h2>
-    <button class="btn-primary" id="btnAddProject">+ Add project</button>
+  <!-- Tabs Navigation Bar & Action -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px;">
+    <div class="tabs-nav" style="margin-top:0; margin-bottom:0; flex:1;">
+      <button class="tab-btn active" id="tabBtnConnected" data-tab="tabConnected">
+        <span>🔗 Connected Projects</span>
+        <span class="badge" id="connectedCount">0</span>
+      </button>
+      <button class="tab-btn" id="tabBtnChanges" data-tab="tabChanges">
+        <span>⚡ Recent Changes & Activity</span>
+        <span class="badge" id="changesCount">0</span>
+      </button>
+    </div>
+    <div style="margin-bottom:6px; margin-left:16px;">
+      <button class="btn-primary" id="btnAddProject">+ Add project</button>
+    </div>
   </div>
 
-  <!-- ═══════════════════ Two Side-by-Side Project Columns ═══════════════════ -->
-  <div class="projects-grid">
-    <!-- Connected Projects -->
-    <div class="section">
-      <div class="section-header">
-        <h2>🔗 Connected Projects</h2>
-        <span class="badge" id="connectedCount">0</span>
-      </div>
-      <div class="section-body">
-        <div id="connectedList" class="project-list">
-          <div class="empty-state">No connected projects configured yet.</div>
+  <!-- ═══════════════════ Tab Panes ═══════════════════ -->
+  <div class="tab-content" style="margin-top:20px;">
+    <!-- Tab 1: Connected Projects -->
+    <div class="tab-pane active" id="tabConnected">
+      <div class="section">
+        <div class="section-header">
+          <h2>🔗 Connected Projects</h2>
+          <span class="badge" id="connectedCountBadge">0 configured</span>
+        </div>
+        <div class="section-body">
+          <div id="connectedList" class="project-list">
+            <div class="empty-state">No connected projects configured yet.</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Recent Changes & Activity -->
-    <div class="section">
-      <div class="section-header">
-        <h2>⚡ Recent Changes & Activity</h2>
-        <span class="badge" id="changesCount">0</span>
-      </div>
-      <div class="section-body">
-        <div id="changesList" class="project-list">
-          <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+    <!-- Tab 2: Recent Changes & Activity -->
+    <div class="tab-pane" id="tabChanges">
+      <div class="section">
+        <div class="section-header">
+          <h2>⚡ Recent Changes & Activity</h2>
+          <span class="badge" id="changesCountBadge">0</span>
+        </div>
+        <div class="section-body">
+          <div id="changesList" class="project-list">
+            <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+          </div>
         </div>
       </div>
     </div>
@@ -936,20 +1000,37 @@ function updateStatusBar() {
   document.getElementById('nextRun').textContent = describeSchedule(config.schedule || '0 8 * * *');
 }
 
-/* ── Render project list (Two columns: Connected & Recent Changes / Status) ── */
+/* ── Tabs setup ── */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const targetTabId = btn.getAttribute('data-tab');
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+    btn.classList.add('active');
+    const targetPane = document.getElementById(targetTabId);
+    if (targetPane) targetPane.classList.add('active');
+  });
+});
+
+/* ── Render project list (Tabs: Connected & Recent Changes / Status) ── */
 function renderProjects() {
   const connectedEl = document.getElementById('connectedList');
   const changesEl = document.getElementById('changesList');
   const connectedCountEl = document.getElementById('connectedCount');
+  const connectedCountBadgeEl = document.getElementById('connectedCountBadge');
   const changesCountEl = document.getElementById('changesCount');
+  const changesCountBadgeEl = document.getElementById('changesCountBadge');
 
   const projects = config.projects || [];
   if (connectedCountEl) connectedCountEl.textContent = projects.length;
+  if (connectedCountBadgeEl) connectedCountBadgeEl.textContent = `${projects.length} configured`;
 
   if (projects.length === 0) {
     connectedEl.innerHTML = '<div class="empty-state">No connected projects configured yet. Add one to get started.</div>';
     changesEl.innerHTML = '<div class="empty-state">No monitored projects.</div>';
     if (changesCountEl) changesCountEl.textContent = '0';
+    if (changesCountBadgeEl) changesCountBadgeEl.textContent = '0';
     return;
   }
 
@@ -980,11 +1061,13 @@ function renderProjects() {
 function renderChangesColumn() {
   const changesEl = document.getElementById('changesList');
   const changesCountEl = document.getElementById('changesCount');
+  const changesCountBadgeEl = document.getElementById('changesCountBadge');
   const projects = config.projects || [];
   const results = window.__lastResults || [];
 
   if (!results || results.length === 0) {
     if (changesCountEl) changesCountEl.textContent = projects.length;
+    if (changesCountBadgeEl) changesCountBadgeEl.textContent = `${projects.length} pending`;
     changesEl.innerHTML = projects.map(p => `
       <div class="project-card">
         <div class="project-card-info">
@@ -1007,7 +1090,8 @@ function renderChangesColumn() {
   };
 
   const activeChanges = results.filter(r => r.status === 'posted').length;
-  if (changesCountEl) changesCountEl.textContent = `${activeChanges} changed / ${results.length} total`;
+  if (changesCountEl) changesCountEl.textContent = activeChanges;
+  if (changesCountBadgeEl) changesCountBadgeEl.textContent = `${activeChanges} changed / ${results.length} total`;
 
   changesEl.innerHTML = results.map(r => `
     <div class="project-card">

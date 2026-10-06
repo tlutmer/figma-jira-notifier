@@ -34,38 +34,53 @@
   <!-- Run results -->
   <div class="run-results" id="runResults" style="display:none;"></div>
 
-  <!-- Action Bar -->
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:12px;">
-    <h2 style="font-size:15px; font-weight:600;">Monitored Projects</h2>
-    <button class="btn-primary" id="btnAddProject">+ Add project</button>
+  <!-- Tabs Navigation Bar & Action -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px;">
+    <div class="tabs-nav" style="margin-top:0; margin-bottom:0; flex:1;">
+      <button class="tab-btn active" id="tabBtnConnected" data-tab="tabConnected">
+        <span>🔗 Connected Projects</span>
+        <span class="badge" id="connectedCount">0</span>
+      </button>
+      <button class="tab-btn" id="tabBtnChanges" data-tab="tabChanges">
+        <span>⚡ Recent Changes & Activity</span>
+        <span class="badge" id="changesCount">0</span>
+      </button>
+    </div>
+    <div style="margin-bottom:6px; margin-left:16px;">
+      <button class="btn-primary" id="btnAddProject">+ Add project</button>
+    </div>
   </div>
 
   <!-- ===================================================== -->
-  <!--  Two Side-by-Side Project Columns                      -->
+  <!--  Tab Panes                                            -->
   <!-- ===================================================== -->
-  <div class="projects-grid">
-    <!-- Connected Projects -->
-    <div class="section">
-      <div class="section-header">
-        <h2>🔗 Connected Projects</h2>
-        <span class="badge" id="connectedCount">0</span>
-      </div>
-      <div class="section-body">
-        <div id="connectedList" class="project-list">
-          <div class="empty-state">No connected projects configured yet.</div>
+  <div class="tab-content" style="margin-top:20px;">
+    <!-- Tab 1: Connected Projects -->
+    <div class="tab-pane active" id="tabConnected">
+      <div class="section">
+        <div class="section-header">
+          <h2>🔗 Connected Projects</h2>
+          <span class="badge" id="connectedCountBadge">0 configured</span>
+        </div>
+        <div class="section-body">
+          <div id="connectedList" class="project-list">
+            <div class="empty-state">No connected projects configured yet.</div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Recent Changes & Activity -->
-    <div class="section">
-      <div class="section-header">
-        <h2>⚡ Recent Changes & Activity</h2>
-        <span class="badge" id="changesCount">0</span>
-      </div>
-      <div class="section-body">
-        <div id="changesList" class="project-list">
-          <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+    <!-- Tab 2: Recent Changes & Activity -->
+    <div class="tab-pane" id="tabChanges">
+      <div class="section">
+        <div class="section-header">
+          <h2>⚡ Recent Changes & Activity</h2>
+          <span class="badge" id="changesCountBadge">0</span>
+        </div>
+        <div class="section-body">
+          <div id="changesList" class="project-list">
+            <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+          </div>
         </div>
       </div>
     </div>
