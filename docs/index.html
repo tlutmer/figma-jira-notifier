@@ -52,17 +52,20 @@
     /* ── Main ── */
     .main { max-width: 900px; margin: 0 auto; padding: 28px 24px 64px; }
 
-    /* ── Info banner ── */
-    .info-banner {
-      background: #edf5ff;
-      border: 1px solid #4589ff;
+    /* ── Status bar ── */
+    .status-bar {
+      font-size: 12px;
+      color: var(--muted);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      background: var(--surface);
+      padding: 10px 14px;
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 12px 16px;
-      font-size: 13px;
-      color: #0043ce;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
-    .info-banner code { background: #d0e2ff; padding: 1px 5px; border-radius: 3px; }
+    .status-bar strong { color: var(--text); }
 
     /* ── Section ── */
     .section { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 24px; }
@@ -73,10 +76,6 @@
     }
     .section-header h2 { font-size: 13px; font-weight: 600; }
     .section-body { padding: 18px; }
-
-    /* ── Status bar ── */
-    .status-bar { font-size: 12px; color: var(--muted); display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
-    .status-bar strong { color: var(--text); }
 
     /* ── Buttons ── */
     button {
@@ -127,7 +126,7 @@
     .mention-row input { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; font-family: var(--font); }
 
     /* ── Run results ── */
-    .run-results { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .run-results { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
     .result-row {
       display: flex; align-items: center; gap: 10px;
       padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); font-size: 13px;
@@ -191,6 +190,7 @@
     <div class="subtitle">Design change notifications for your frontend team</div>
   </div>
   <div class="app-header-right">
+    <button class="btn-run" id="btnRunNow">▶ Run Now</button>
     <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener" class="gh-link">
       <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       GitHub
@@ -200,11 +200,11 @@
 
 <main class="main">
 
-  <!-- ── Info banner ── -->
-  <div class="info-banner">
-    <strong>Note:</strong> Projects and settings are saved in your browser's local storage.
-    To actually run Figma diffs and post Jira comments, clone the repo and run
-    <code>npm start</code> — the server reads this same config automatically.
+  <!-- ── Status bar ── -->
+  <div class="status-bar" id="statusBar">
+    <span>Last run: <strong id="lastRun">—</strong></span>
+    <span>Next scheduled: <strong id="nextRun">Daily at 08:00</strong></span>
+    <span>Schedule: <strong id="scheduleDisplay">0 8 * * *</strong></span>
   </div>
 
   <!-- ── Run results ── -->
@@ -305,6 +305,8 @@
 
 /* ── Storage ── */
 const STORAGE_KEY = 'figma-changelog-config';
+const SNAPSHOTS_KEY_PREFIX = 'figma-snapshot-';
+const LAST_RUN_KEY = 'figma-last-run';
 
 function loadConfig() {
   try {
@@ -319,6 +321,21 @@ function defaultConfig() {
 
 function saveConfig(cfg) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+}
+
+function getStoredSnapshot(fileKey) {
+  try {
+    const raw = localStorage.getItem(SNAPSHOTS_KEY_PREFIX + fileKey);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function saveStoredSnapshot(fileKey, snapshot) {
+  try {
+    localStorage.setItem(SNAPSHOTS_KEY_PREFIX + fileKey, JSON.stringify(snapshot));
+  } catch (e) {
+    console.warn('Failed to save snapshot to localStorage:', e);
+  }
 }
 
 /* ── Parsers ── */
@@ -348,6 +365,20 @@ function esc(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function formatDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString();
+}
+
+function describeSchedule(cron) {
+  if (!cron) return '—';
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return cron;
+  const [min, hour, dom, , dow] = parts;
+  if (dom === '*' && dow === '*') return `Daily at ${hour.padStart(2,'0')}:${min.padStart(2,'0')}`;
+  return cron;
+}
+
 /* ── Alert helper ── */
 function showAlert(elId, type, message) {
   const el = document.getElementById(elId);
@@ -363,6 +394,454 @@ function dismissAlert(elId) {
 /* ── State ── */
 let config = loadConfig();
 let editingProjectId = null;
+let lastRunTime = localStorage.getItem(LAST_RUN_KEY) || null;
+
+/* ── Diff Engine (browser-adapted) ── */
+const TRACKED_TYPES = new Set([
+  'FRAME', 'GROUP', 'COMPONENT', 'COMPONENT_SET',
+  'INSTANCE', 'TEXT', 'RECTANGLE', 'ELLIPSE',
+  'VECTOR', 'BOOLEAN_OPERATION', 'SECTION'
+]);
+
+function flattenTree(node, pageName = '', frameName = '', result = new Map()) {
+  const currentPage = node.type === 'CANVAS' ? node.name : pageName;
+  const currentFrame = (node.type === 'FRAME' || node.type === 'SECTION') && pageName !== ''
+    ? node.name
+    : frameName;
+
+  if (TRACKED_TYPES.has(node.type)) {
+    result.set(node.id, { node, pageName: currentPage, frameName: currentFrame });
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      flattenTree(child, currentPage, currentFrame, result);
+    }
+  }
+
+  return result;
+}
+
+function describeChanges(oldNode, newNode) {
+  const changes = [];
+  if (oldNode.characters !== newNode.characters) {
+    changes.push(`text updated: ${oldNode.characters || '(empty)'} → ${newNode.characters || '(empty)'}`);
+  }
+  if (oldNode.name !== newNode.name) {
+    changes.push(`renamed: "${oldNode.name}" → "${newNode.name}"`);
+  }
+  if (oldNode.visible !== newNode.visible) {
+    changes.push(`layer ${newNode.visible === false ? 'hidden' : 'made visible'}`);
+  }
+  if (JSON.stringify(oldNode.fills) !== JSON.stringify(newNode.fills)) {
+    const hadStyle = oldNode.styles && oldNode.styles.fill;
+    const hasStyle = newNode.styles && newNode.styles.fill;
+    changes.push(hadStyle && !hasStyle ? 'fill colour changed; style reference removed' : 'fill colour changed');
+  }
+  if (JSON.stringify(oldNode.styles) !== JSON.stringify(newNode.styles)) {
+    if (JSON.stringify(oldNode.fills) === JSON.stringify(newNode.fills)) {
+      changes.push('style reference changed');
+    }
+  }
+  return changes;
+}
+
+function diffTrees(oldTree, newTree) {
+  const newMap = flattenTree(newTree);
+  const oldMap = oldTree ? flattenTree(oldTree) : new Map();
+
+  const added = [];
+  const removed = [];
+  const updated = [];
+  const pageSet = new Set();
+
+  for (const [id, { node: newNode, pageName, frameName }] of newMap) {
+    if (!oldMap.has(id)) {
+      added.push({ id, name: newNode.name, type: newNode.type, pageName, frameName });
+      pageSet.add(pageName);
+    } else {
+      const { node: oldNode } = oldMap.get(id);
+      const changes = describeChanges(oldNode, newNode);
+      if (changes.length > 0) {
+        updated.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, changes });
+        pageSet.add(pageName);
+      }
+    }
+  }
+
+  for (const [id, { node: oldNode, pageName, frameName }] of oldMap) {
+    if (!newMap.has(id)) {
+      removed.push({ id, name: oldNode.name, type: oldNode.type, pageName, frameName });
+      pageSet.add(pageName);
+    }
+  }
+
+  return {
+    added,
+    removed,
+    updated,
+    totalChanges: added.length + removed.length + updated.length,
+    pages: [...pageSet].filter(Boolean)
+  };
+}
+
+function typeLabel(type) {
+  const map = {
+    FRAME: 'Frame', GROUP: 'Group', COMPONENT: 'Component',
+    COMPONENT_SET: 'Component set', INSTANCE: 'Instance',
+    TEXT: 'Text', RECTANGLE: 'Rectangle', ELLIPSE: 'Ellipse',
+    VECTOR: 'Vector', BOOLEAN_OPERATION: 'Boolean op', SECTION: 'Section'
+  };
+  return map[type] || type;
+}
+
+function partitionSweeping(entries, threshold = 3) {
+  const changeCount = new Map();
+  for (const entry of entries) {
+    for (const c of (entry.changes || [])) {
+      changeCount.set(c, (changeCount.get(c) || 0) + 1);
+    }
+  }
+  const sweepingDescs = new Set(
+    [...changeCount.entries()].filter(([, n]) => n >= threshold).map(([d]) => d)
+  );
+
+  const restEntries = entries.map(entry => ({
+    ...entry,
+    changes: (entry.changes || []).filter(c => !sweepingDescs.has(c))
+  })).filter(e => e.changes.length > 0);
+
+  return { sweepingDescs, restEntries };
+}
+
+function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate) {
+  const { added, removed, updated, totalChanges, pages } = diffResult;
+  const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
+
+  const adfContent = [
+    { type: 'paragraph', content: [{ type: 'text', text: '📐 Figma Changelog — ' }, { type: 'text', text: `${totalChanges} Changes`, marks: [{ type: 'strong' }] }] },
+    {
+      type: 'paragraph',
+      content: [
+        { type: 'text', text: 'File: ', marks: [{ type: 'strong' }] },
+        figmaUrl ? { type: 'text', text: figmaFileName, marks: [{ type: 'link', attrs: { href: figmaUrl } }] } : { type: 'text', text: figmaFileName }
+      ]
+    },
+    { type: 'paragraph', content: [{ type: 'text', text: 'Pages: ', marks: [{ type: 'strong' }] }, { type: 'text', text: pagesLabel }] },
+  ];
+
+  if (!snapshotDate) {
+    adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: '⚠️ No previous snapshot found. This is the first run — baseline saved, no diff to report.' }] });
+  }
+
+  adfContent.push({ type: 'rule' });
+
+  // Page sections
+  const allPages = new Set([
+    ...added.map(n => n.pageName || 'Unknown page'),
+    ...removed.map(n => n.pageName || 'Unknown page'),
+    ...updated.map(n => n.pageName || 'Unknown page'),
+  ]);
+
+  for (const page of allPages) {
+    const pageAdded = added.filter(n => (n.pageName || 'Unknown page') === page);
+    const pageRemoved = removed.filter(n => (n.pageName || 'Unknown page') === page);
+    const pageUpdated = updated.filter(n => (n.pageName || 'Unknown page') === page);
+
+    adfContent.push({ type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: page }] });
+
+    const { sweepingDescs, restEntries: localUpdated } = partitionSweeping(pageUpdated);
+
+    if (sweepingDescs.size > 0 || pageAdded.length > 0 || pageRemoved.length > 0) {
+      const noFrameAdded = pageAdded.filter(n => !n.frameName);
+      const noFrameRemoved = pageRemoved.filter(n => !n.frameName);
+      const sweepingBullets = [];
+
+      if (noFrameAdded.length > 0) {
+        sweepingBullets.push([{ type: 'text', text: 'Added', marks: [{ type: 'strong' }] }]);
+        for (const n of [...new Map(noFrameAdded.map(x => [x.id, x])).values()]) {
+          sweepingBullets.push([{ type: 'text', text: `${typeLabel(n.type)}: ${n.name}` }]);
+        }
+      }
+      if (noFrameRemoved.length > 0) {
+        sweepingBullets.push([{ type: 'text', text: 'Removed', marks: [{ type: 'strong' }] }]);
+        for (const n of [...new Map(noFrameRemoved.map(x => [x.id, x])).values()]) {
+          sweepingBullets.push([{ type: 'text', text: `${typeLabel(n.type)}: ${n.name}` }]);
+        }
+      }
+      if (sweepingDescs.size > 0) {
+        const sweepNodes = pageUpdated.filter(e => (e.changes || []).some(c => sweepingDescs.has(c)))
+          .map(e => ({ ...e, changes: (e.changes || []).filter(c => sweepingDescs.has(c)) }));
+        sweepingBullets.push([{ type: 'text', text: 'Updated', marks: [{ type: 'strong' }] }]);
+        for (const node of sweepNodes) {
+          for (const change of (node.changes || [])) {
+            sweepingBullets.push([{ type: 'text', text: `${typeLabel(node.type)}: ${node.name} — ${change}` }]);
+          }
+        }
+      }
+
+      if (sweepingBullets.length > 0) {
+        adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: '⚡ Sweeping changes', marks: [{ type: 'strong' }] }] });
+        adfContent.push({
+          type: 'bulletList',
+          content: sweepingBullets.map(b => ({ type: 'listItem', content: [{ type: 'paragraph', content: b }] }))
+        });
+      }
+    }
+
+    const frameNames = new Set([
+      ...pageAdded.filter(n => n.frameName).map(n => n.frameName),
+      ...pageRemoved.filter(n => n.frameName).map(n => n.frameName),
+      ...localUpdated.filter(n => n.frameName).map(n => n.frameName),
+    ]);
+
+    for (const frame of frameNames) {
+      const frameAdded = pageAdded.filter(n => n.frameName === frame);
+      const frameRemoved = pageRemoved.filter(n => n.frameName === frame);
+      const frameUpdated = localUpdated.filter(n => n.frameName === frame);
+
+      adfContent.push({ type: 'paragraph', content: [{ type: 'text', text: `Screen: ${frame}`, marks: [{ type: 'strong' }] }] });
+
+      const bullets = [];
+      if (frameAdded.length > 0) {
+        bullets.push([{ type: 'text', text: 'Added', marks: [{ type: 'strong' }] }]);
+        for (const n of [...new Map(frameAdded.map(x => [x.id, x])).values()]) {
+          bullets.push([{ type: 'text', text: `${typeLabel(n.type)}: ${n.name}` }]);
+        }
+      }
+      if (frameRemoved.length > 0) {
+        bullets.push([{ type: 'text', text: 'Removed', marks: [{ type: 'strong' }] }]);
+        for (const n of [...new Map(frameRemoved.map(x => [x.id, x])).values()]) {
+          bullets.push([{ type: 'text', text: `${typeLabel(n.type)}: ${n.name}` }]);
+        }
+      }
+      if (frameUpdated.length > 0) {
+        bullets.push([{ type: 'text', text: 'Updated', marks: [{ type: 'strong' }] }]);
+        for (const node of frameUpdated) {
+          for (const change of (node.changes || [])) {
+            bullets.push([{ type: 'text', text: `${typeLabel(node.type)}: ${node.name} — ${change}` }]);
+          }
+        }
+      }
+
+      if (bullets.length > 0) {
+        adfContent.push({
+          type: 'bulletList',
+          content: bullets.map(b => ({ type: 'listItem', content: [{ type: 'paragraph', content: b }] }))
+        });
+      }
+    }
+
+    adfContent.push({ type: 'rule' });
+  }
+
+  const mentionNodes = (mentionedUsers || []).flatMap(u => [
+    { type: 'mention', attrs: { id: u.jiraAccountId, text: `@${u.displayName}` } },
+    { type: 'text', text: ' ' }
+  ]);
+
+  if (mentionNodes.length > 0) {
+    adfContent.push({
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Notifying: ', marks: [{ type: 'strong' }] }, ...mentionNodes]
+    });
+  }
+
+  return { version: 1, type: 'doc', content: adfContent };
+}
+
+/* ── Runner Pipeline (Works with local API or direct browser fetch) ── */
+async function runAllProjectsPipeline() {
+  // If served from backend server, use backend /api/run
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || [];
+    }
+  } catch {
+    // Fall back to client-side run
+  }
+
+  // Client-side run using tokens stored in localStorage
+  const projects = config.projects || [];
+  if (projects.length === 0) return [];
+
+  if (!config.figmaToken) {
+    throw new Error('Figma personal access token is required to run.');
+  }
+
+  const results = [];
+  for (const project of projects) {
+    try {
+      const res = await fetch(`https://api.figma.com/v1/files/${project.figmaFileKey}`, {
+        headers: { 'X-Figma-Token': config.figmaToken }
+      });
+      if (!res.ok) {
+        throw new Error(`Figma API error (${res.status}): ${await res.text()}`);
+      }
+      const data = await res.json();
+      const currentTree = data.document;
+      const previousSnapshot = getStoredSnapshot(project.figmaFileKey);
+
+      if (!previousSnapshot) {
+        currentTree._savedAt = new Date().toISOString();
+        saveStoredSnapshot(project.figmaFileKey, currentTree);
+        results.push({
+          projectId: project.id,
+          figmaFileName: project.figmaFileName || project.figmaFileKey,
+          status: 'first_run',
+          changesCount: 0
+        });
+        continue;
+      }
+
+      const diffResult = diffTrees(previousSnapshot, currentTree);
+      if (diffResult.totalChanges === 0) {
+        results.push({
+          projectId: project.id,
+          figmaFileName: project.figmaFileName || project.figmaFileKey,
+          status: 'no_changes',
+          changesCount: 0
+        });
+        continue;
+      }
+
+      const runAt = new Date().toISOString();
+      const snapshotDate = previousSnapshot._savedAt || null;
+      const adf = buildCommentAdf(
+        diffResult,
+        project.figmaFileName || project.figmaFileKey,
+        project.figmaUrl || '',
+        runAt,
+        project.mentionedUsers || [],
+        snapshotDate
+      );
+
+      // Post to Jira if configured
+      if (config.jiraBaseUrl && config.jiraEmail && config.jiraApiToken && project.jiraIssueKey) {
+        const jiraRes = await fetch(`${config.jiraBaseUrl.replace(/\/$/, '')}/rest/api/3/issue/${project.jiraIssueKey}/comment`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Basic ' + btoa(`${config.jiraEmail}:${config.jiraApiToken}`),
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ body: adf })
+        });
+        if (!jiraRes.ok) {
+          throw new Error(`Jira API error (${jiraRes.status}): ${await jiraRes.text()}`);
+        }
+      }
+
+      currentTree._savedAt = runAt;
+      saveStoredSnapshot(project.figmaFileKey, currentTree);
+
+      results.push({
+        projectId: project.id,
+        figmaFileName: project.figmaFileName || project.figmaFileKey,
+        status: 'posted',
+        changesCount: diffResult.totalChanges
+      });
+    } catch (err) {
+      results.push({
+        projectId: project.id,
+        figmaFileName: project.figmaFileName || project.figmaFileKey,
+        status: 'error',
+        changesCount: 0,
+        error: err.message
+      });
+    }
+  }
+
+  return results;
+}
+
+/* ── Automatic Schedule Runner (Browser timer for 8:00am) ── */
+let scheduleTimer = null;
+
+function setupScheduleTimer() {
+  if (scheduleTimer) clearTimeout(scheduleTimer);
+
+  const parts = (config.schedule || '0 8 * * *').trim().split(/\s+/);
+  const targetMinute = parseInt(parts[0] || '0', 10);
+  const targetHour = parseInt(parts[1] || '8', 10);
+
+  const now = new Date();
+  const nextTarget = new Date();
+  nextTarget.setHours(targetHour, targetMinute, 0, 0);
+
+  if (nextTarget <= now) {
+    nextTarget.setDate(nextTarget.getDate() + 1);
+  }
+
+  const msUntilTarget = nextTarget.getTime() - now.getTime();
+  console.log(`[Scheduler] Automatic run scheduled in ${(msUntilTarget / 1000 / 60).toFixed(1)} minutes (at ${nextTarget.toLocaleTimeString()})`);
+
+  scheduleTimer = setTimeout(async () => {
+    console.log('[Scheduler] Executing scheduled automatic run at ' + new Date().toISOString());
+    await executeRun(true);
+    setupScheduleTimer();
+  }, msUntilTarget);
+}
+
+async function executeRun(isAutomatic = false) {
+  const btn = document.getElementById('btnRunNow');
+  btn.disabled = true;
+  btn.classList.add('running');
+  btn.textContent = isAutomatic ? '⏳ Auto-running…' : '⏳ Running…';
+
+  const resultsEl = document.getElementById('runResults');
+  resultsEl.style.display = 'none';
+  resultsEl.innerHTML = '';
+
+  try {
+    const results = await runAllProjectsPipeline();
+    lastRunTime = new Date().toISOString();
+    localStorage.setItem(LAST_RUN_KEY, lastRunTime);
+    renderRunResults(results);
+    updateStatusBar();
+  } catch (err) {
+    resultsEl.style.display = 'flex';
+    resultsEl.innerHTML = `<div class="result-row error"><span class="result-icon">❌</span><span>${esc(err.message)}</span></div>`;
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('running');
+    btn.textContent = '▶ Run Now';
+  }
+}
+
+function renderRunResults(results) {
+  const el = document.getElementById('runResults');
+  if (!results || results.length === 0) {
+    el.style.display = 'flex';
+    el.innerHTML = '<div class="result-row no_changes"><span class="result-icon">ℹ️</span><span>No projects configured or run complete.</span></div>';
+    return;
+  }
+
+  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
+  const labels = {
+    posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} posted to Jira`,
+    no_changes: () => 'No changes detected',
+    first_run: () => 'First run — baseline saved',
+    error: r => r.error || 'Unknown error'
+  };
+
+  el.innerHTML = results.map(r => `
+    <div class="result-row ${r.status}">
+      <span class="result-icon">${icons[r.status] || '•'}</span>
+      <div>
+        <strong>${esc(r.figmaFileName || r.projectId)}</strong>
+        <div class="result-detail">${esc((labels[r.status] || (() => r.status))(r))}</div>
+      </div>
+    </div>
+  `).join('');
+  el.style.display = 'flex';
+}
 
 /* ── Render settings form ── */
 function renderSettings() {
@@ -373,6 +852,12 @@ function renderSettings() {
   document.getElementById('jiraApiToken').placeholder = config.jiraApiToken ? '(stored — leave blank to keep)' : 'Your Jira API token';
   document.getElementById('figmaToken').value   = '';
   document.getElementById('jiraApiToken').value = '';
+}
+
+function updateStatusBar() {
+  document.getElementById('lastRun').textContent = lastRunTime ? formatDate(lastRunTime) : '—';
+  document.getElementById('scheduleDisplay').textContent = config.schedule || '0 8 * * *';
+  document.getElementById('nextRun').textContent = describeSchedule(config.schedule || '0 8 * * *');
 }
 
 /* ── Render project list ── */
@@ -405,19 +890,24 @@ function renderProjects() {
   }
 }
 
-function render() { renderSettings(); renderProjects(); }
+function render() {
+  renderSettings();
+  renderProjects();
+  updateStatusBar();
+}
 
 /* ── Settings form submit ── */
 document.getElementById('settingsForm').addEventListener('submit', e => {
   e.preventDefault();
   config.jiraBaseUrl = document.getElementById('jiraBaseUrl').value.trim();
   config.jiraEmail   = document.getElementById('jiraEmail').value.trim();
-  config.schedule    = document.getElementById('schedule').value.trim();
+  config.schedule    = document.getElementById('schedule').value.trim() || '0 8 * * *';
   const ft = document.getElementById('figmaToken').value;
   const jt = document.getElementById('jiraApiToken').value;
   if (ft) config.figmaToken   = ft;
   if (jt) config.jiraApiToken = jt;
   saveConfig(config);
+  setupScheduleTimer();
   render();
   showAlert('settingsAlert', 'success', 'Settings saved.');
 });
@@ -529,7 +1019,8 @@ document.getElementById('modalSave').addEventListener('click', () => {
   closeModal();
 });
 
-/* ── Wire up modal buttons ── */
+/* ── Wire up buttons ── */
+document.getElementById('btnRunNow').addEventListener('click', () => executeRun(false));
 document.getElementById('btnAddProject').addEventListener('click', openAddModal);
 document.getElementById('modalClose').addEventListener('click', closeModal);
 document.getElementById('modalCancel').addEventListener('click', closeModal);
@@ -542,6 +1033,7 @@ document.getElementById('btnAddMention').addEventListener('click', () => {
 
 /* ── Init ── */
 render();
+setupScheduleTimer();
 </script>
 </body>
 </html>
