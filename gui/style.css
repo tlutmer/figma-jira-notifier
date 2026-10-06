@@ -69,6 +69,18 @@ a:hover { text-decoration: underline; }
   gap: 10px;
 }
 
+.gh-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: underline;
+  padding: 6px 8px;
+}
+.gh-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 /* ---- Tabs navigation ---- */
 .tabs-nav {
   display: flex;
