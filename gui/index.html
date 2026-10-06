@@ -16,7 +16,10 @@
     <h1>📐 Figma → Jira Notifier</h1>
     <div class="subtitle">Design change notifications for your frontend team</div>
   </div>
-  <button class="btn-run" id="btnRunNow">▶ Run Now</button>
+  <div class="header-actions">
+    <button class="btn-secondary" id="btnOpenSettings">⚙️ Settings</button>
+    <button class="btn-run" id="btnRunNow">▶ Run Now</button>
+  </div>
 </header>
 
 <main class="main">
@@ -31,32 +34,58 @@
   <!-- Run results -->
   <div class="run-results" id="runResults" style="display:none;"></div>
 
+  <!-- Action Bar -->
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:12px;">
+    <h2 style="font-size:15px; font-weight:600;">Monitored Projects</h2>
+    <button class="btn-primary" id="btnAddProject">+ Add project</button>
+  </div>
+
   <!-- ===================================================== -->
-  <!--  Projects                                              -->
+  <!--  Two Side-by-Side Project Columns                      -->
   <!-- ===================================================== -->
-  <div class="section" style="margin-top:20px;">
-    <div class="section-header">
-      <h2>Projects</h2>
-      <button class="btn-primary" id="btnAddProject">+ Add project</button>
+  <div class="projects-grid">
+    <!-- Connected Projects -->
+    <div class="section">
+      <div class="section-header">
+        <h2>🔗 Connected Projects</h2>
+        <span class="badge" id="connectedCount">0</span>
+      </div>
+      <div class="section-body">
+        <div id="connectedList" class="project-list">
+          <div class="empty-state">No connected projects configured yet.</div>
+        </div>
+      </div>
     </div>
-    <div class="section-body">
-      <div id="projectList" class="project-list">
-        <div class="empty-state">No projects configured yet. Add one to get started.</div>
+
+    <!-- Recent Changes & Activity -->
+    <div class="section">
+      <div class="section-header">
+        <h2>⚡ Recent Changes & Activity</h2>
+        <span class="badge" id="changesCount">0</span>
+      </div>
+      <div class="section-body">
+        <div id="changesList" class="project-list">
+          <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ===================================================== -->
-  <!--  Global settings                                       -->
-  <!-- ===================================================== -->
-  <div class="section">
-    <div class="section-header">
-      <h2>Global Settings</h2>
+</main>
+
+<!-- ========================================================= -->
+<!--  Global Settings Modal                                     -->
+<!-- ========================================================= -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Global Settings</h3>
+      <button class="modal-close" id="settingsModalClose" aria-label="Close">✕</button>
     </div>
-    <div class="section-body">
+    <div class="modal-body">
       <div id="settingsAlert" class="alert"></div>
       <form id="settingsForm">
-        <div class="form-grid">
+        <div class="form-grid full" style="gap:12px;">
           <div class="field">
             <label for="figmaToken">Figma personal access token</label>
             <input type="password" id="figmaToken" name="figmaToken" placeholder="figd_…" autocomplete="off" />
@@ -78,14 +107,14 @@
             <input type="password" id="jiraApiToken" name="jiraApiToken" placeholder="Your Jira API token" autocomplete="off" />
           </div>
         </div>
-        <div style="margin-top:16px; display:flex; justify-content:flex-end;">
-          <button type="submit" class="btn-primary">Save settings</button>
-        </div>
       </form>
     </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="settingsModalCancel">Cancel</button>
+      <button type="button" class="btn-primary" id="btnSaveSettings">Save settings</button>
+    </div>
   </div>
-
-</main>
+</div>
 
 <!-- ========================================================= -->
 <!--  Add / Edit Project Modal                                  -->

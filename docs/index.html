@@ -50,7 +50,18 @@
     .app-header-right { display: flex; align-items: center; gap: 10px; }
 
     /* ── Main ── */
-    .main { max-width: 900px; margin: 0 auto; padding: 28px 24px 64px; }
+    .main { max-width: 1040px; margin: 0 auto; padding: 28px 24px 64px; }
+
+    /* ── Projects Grid ── */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 16px;
+    }
+    @media (max-width: 768px) {
+      .projects-grid { grid-template-columns: 1fr; }
+    }
 
     /* ── Status bar ── */
     .status-bar {
@@ -68,14 +79,18 @@
     .status-bar strong { color: var(--text); }
 
     /* ── Section ── */
-    .section { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 24px; }
+    .section { border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; background: var(--bg); display: flex; flex-direction: column; }
     .section-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 13px 18px; border-bottom: 1px solid var(--border);
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
       background: var(--surface); border-radius: var(--radius) var(--radius) 0 0;
     }
     .section-header h2 { font-size: 13px; font-weight: 600; }
-    .section-body { padding: 18px; }
+    .section-header .badge {
+      font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 10px;
+      background: var(--border); color: var(--muted);
+    }
+    .section-body { padding: 14px; flex: 1; }
 
     /* ── Buttons ── */
     button {
@@ -111,15 +126,25 @@
     /* ── Project list ── */
     .project-list { display: flex; flex-direction: column; gap: 10px; }
     .project-card {
-      border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
-      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px;
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+      background: var(--bg); transition: border-color 0.15s;
     }
+    .project-card:hover { border-color: #cbd5e1; }
     .project-card-info { flex: 1; min-width: 0; }
-    .project-card-info .name { font-weight: 600; font-size: 14px; }
-    .project-card-info .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .project-card-info .name { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+    .project-card-info .meta { font-size: 12px; color: var(--muted); margin-top: 2px; word-break: break-all; }
     .project-card-info .mentions { font-size: 12px; color: var(--muted); margin-top: 4px; }
-    .project-card-actions { display: flex; gap: 8px; flex-shrink: 0; }
-    .empty-state { text-align: center; padding: 32px 16px; color: var(--muted); font-size: 13px; }
+    .project-card-info .change-status {
+      font-size: 11px; margin-top: 6px; display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 6px; border-radius: 4px; font-weight: 500;
+    }
+    .project-card-info .change-status.has-changes { background: #dcfce7; color: #15803d; }
+    .project-card-info .change-status.no-changes  { background: var(--surface); color: var(--muted); }
+    .project-card-info .change-status.baseline    { background: #dbeafe; color: #1d4ed8; }
+    .project-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .project-card-actions button { padding: 4px 10px; font-size: 12px; }
+    .empty-state { text-align: center; padding: 24px 12px; color: var(--muted); font-size: 12px; }
 
     /* ── Mention rows ── */
     .mention-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -190,6 +215,7 @@
     <div class="subtitle">Design change notifications for your frontend team</div>
   </div>
   <div class="app-header-right">
+    <button class="btn-secondary" id="btnOpenSettings">⚙️ Settings</button>
     <button class="btn-run" id="btnRunNow">▶ Run Now</button>
     <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener" class="gh-link">
       <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -215,28 +241,54 @@
   <!-- ── Run results ── -->
   <div class="run-results" id="runResults" style="display:none;"></div>
 
-  <!-- ═══════════════════ Projects ═══════════════════ -->
-  <div class="section">
-    <div class="section-header">
-      <h2>Projects</h2>
-      <button class="btn-primary" id="btnAddProject">+ Add project</button>
+  <!-- Action Bar -->
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:12px;">
+    <h2 style="font-size:15px; font-weight:600;">Monitored Projects</h2>
+    <button class="btn-primary" id="btnAddProject">+ Add project</button>
+  </div>
+
+  <!-- ═══════════════════ Two Side-by-Side Project Columns ═══════════════════ -->
+  <div class="projects-grid">
+    <!-- Connected Projects -->
+    <div class="section">
+      <div class="section-header">
+        <h2>🔗 Connected Projects</h2>
+        <span class="badge" id="connectedCount">0</span>
+      </div>
+      <div class="section-body">
+        <div id="connectedList" class="project-list">
+          <div class="empty-state">No connected projects configured yet.</div>
+        </div>
+      </div>
     </div>
-    <div class="section-body">
-      <div id="projectList" class="project-list">
-        <div class="empty-state">No projects configured yet. Add one to get started.</div>
+
+    <!-- Recent Changes & Activity -->
+    <div class="section">
+      <div class="section-header">
+        <h2>⚡ Recent Changes & Activity</h2>
+        <span class="badge" id="changesCount">0</span>
+      </div>
+      <div class="section-body">
+        <div id="changesList" class="project-list">
+          <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ═══════════════════ Global settings ═══════════════════ -->
-  <div class="section">
-    <div class="section-header">
-      <h2>Global settings</h2>
+</main>
+
+<!-- ═══════════════════ Global Settings Modal ═══════════════════ -->
+<div class="modal-backdrop" id="settingsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Global Settings</h3>
+      <button class="modal-close" id="settingsModalClose" aria-label="Close">✕</button>
     </div>
-    <div class="section-body">
+    <div class="modal-body">
       <div id="settingsAlert" class="alert"></div>
       <form id="settingsForm">
-        <div class="form-grid">
+        <div class="form-grid full" style="gap:12px;">
           <div class="field">
             <label for="figmaToken">Figma personal access token</label>
             <input type="password" id="figmaToken" placeholder="figd_…" autocomplete="off" />
@@ -258,14 +310,14 @@
             <input type="password" id="jiraApiToken" placeholder="Your Jira API token" autocomplete="off" />
           </div>
         </div>
-        <div style="margin-top:16px; display:flex; justify-content:flex-end;">
-          <button type="submit" class="btn-primary">Save settings</button>
-        </div>
       </form>
     </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary" id="settingsModalCancel">Cancel</button>
+      <button type="button" class="btn-primary" id="btnSaveSettings">Save settings</button>
+    </div>
   </div>
-
-</main>
+</div>
 
 <!-- ═══════════════════ Add / Edit Project Modal ═══════════════════ -->
 <div class="modal-backdrop" id="projectModal">
@@ -825,7 +877,9 @@ async function executeRun(isAutomatic = false) {
     const results = await runAllProjectsPipeline();
     lastRunTime = new Date().toISOString();
     localStorage.setItem(LAST_RUN_KEY, lastRunTime);
+    window.__lastResults = results;
     renderRunResults(results);
+    renderProjects();
     updateStatusBar();
   } catch (err) {
     resultsEl.style.display = 'flex';
@@ -882,17 +936,26 @@ function updateStatusBar() {
   document.getElementById('nextRun').textContent = describeSchedule(config.schedule || '0 8 * * *');
 }
 
-/* ── Render project list ── */
+/* ── Render project list (Two columns: Connected & Recent Changes / Status) ── */
 function renderProjects() {
-  const list = document.getElementById('projectList');
+  const connectedEl = document.getElementById('connectedList');
+  const changesEl = document.getElementById('changesList');
+  const connectedCountEl = document.getElementById('connectedCount');
+  const changesCountEl = document.getElementById('changesCount');
+
   const projects = config.projects || [];
+  if (connectedCountEl) connectedCountEl.textContent = projects.length;
+
   if (projects.length === 0) {
-    list.innerHTML = '<div class="empty-state">No projects configured yet. Add one to get started.</div>';
+    connectedEl.innerHTML = '<div class="empty-state">No connected projects configured yet. Add one to get started.</div>';
+    changesEl.innerHTML = '<div class="empty-state">No monitored projects.</div>';
+    if (changesCountEl) changesCountEl.textContent = '0';
     return;
   }
-  list.innerHTML = '';
+
+  connectedEl.innerHTML = '';
   for (const p of projects) {
-    const mentions = (p.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || '';
+    const mentions = (p.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || 'None';
     const nameHtml = p.figmaUrl
       ? `<a href="${esc(p.figmaUrl)}" target="_blank" rel="noopener noreferrer" style="color:inherit;">${esc(p.figmaFileName || p.figmaFileKey)}</a>`
       : esc(p.figmaFileName || p.figmaFileKey);
@@ -900,16 +963,60 @@ function renderProjects() {
     card.className = 'project-card';
     card.innerHTML = `
       <div class="project-card-info">
-        <div class="name">${nameHtml}</div>
+        <div class="name">📐 ${nameHtml}</div>
         <div class="meta">Figma: <code>${esc(p.figmaFileKey)}</code> → Jira: <strong>${esc(p.jiraIssueKey)}</strong></div>
-        ${mentions ? `<div class="mentions">👥 ${esc(mentions)}</div>` : ''}
+        <div class="mentions">👥 ${esc(mentions)}</div>
       </div>
       <div class="project-card-actions">
         <button class="btn-secondary" onclick="openEditModal('${p.id}')">Edit</button>
-        <button class="btn-danger" onclick="deleteProject('${p.id}')">Remove</button>
+        <button class="btn-danger" onclick="deleteProject('${p.id}')">✕</button>
       </div>`;
-    list.appendChild(card);
+    connectedEl.appendChild(card);
   }
+
+  renderChangesColumn();
+}
+
+function renderChangesColumn() {
+  const changesEl = document.getElementById('changesList');
+  const changesCountEl = document.getElementById('changesCount');
+  const projects = config.projects || [];
+  const results = window.__lastResults || [];
+
+  if (!results || results.length === 0) {
+    if (changesCountEl) changesCountEl.textContent = projects.length;
+    changesEl.innerHTML = projects.map(p => `
+      <div class="project-card">
+        <div class="project-card-info">
+          <div class="name">${esc(p.figmaFileName || p.figmaFileKey)}</div>
+          <div class="meta">Jira: <strong>${esc(p.jiraIssueKey)}</strong></div>
+          <span class="change-status no-changes">💤 Ready — pending next diff run</span>
+        </div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
+  const badgeClasses = { posted: 'has-changes', no_changes: 'no-changes', first_run: 'baseline', error: 'has-changes' };
+  const labels = {
+    posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} detected & posted to Jira`,
+    no_changes: () => 'No changes detected (synced)',
+    first_run: () => 'Baseline snapshot established',
+    error: r => `Error: ${r.error || 'Failed'}`
+  };
+
+  const activeChanges = results.filter(r => r.status === 'posted').length;
+  if (changesCountEl) changesCountEl.textContent = `${activeChanges} changed / ${results.length} total`;
+
+  changesEl.innerHTML = results.map(r => `
+    <div class="project-card">
+      <div class="project-card-info">
+        <div class="name">${icons[r.status] || '•'} ${esc(r.figmaFileName || r.projectId)}</div>
+        <span class="change-status ${badgeClasses[r.status] || 'no-changes'}">${esc((labels[r.status] || (() => r.status))(r))}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 function render() {
@@ -918,9 +1025,24 @@ function render() {
   updateStatusBar();
 }
 
-/* ── Settings form submit ── */
-document.getElementById('settingsForm').addEventListener('submit', e => {
-  e.preventDefault();
+/* ── Settings modal open / close ── */
+function openSettingsModal() {
+  document.getElementById('settingsAlert').className = 'alert';
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+document.getElementById('btnOpenSettings').addEventListener('click', openSettingsModal);
+document.getElementById('settingsModalClose').addEventListener('click', closeSettingsModal);
+document.getElementById('settingsModalCancel').addEventListener('click', closeSettingsModal);
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('settingsModal')) closeSettingsModal();
+});
+
+document.getElementById('btnSaveSettings').addEventListener('click', () => {
   config.jiraBaseUrl = document.getElementById('jiraBaseUrl').value.trim();
   config.jiraEmail   = document.getElementById('jiraEmail').value.trim();
   config.schedule    = document.getElementById('schedule').value.trim() || '0 8 * * *';
@@ -932,6 +1054,12 @@ document.getElementById('settingsForm').addEventListener('submit', e => {
   setupScheduleTimer();
   render();
   showAlert('settingsAlert', 'success', 'Settings saved.');
+  setTimeout(() => closeSettingsModal(), 1000);
+});
+
+document.getElementById('settingsForm').addEventListener('submit', e => {
+  e.preventDefault();
+  document.getElementById('btnSaveSettings').click();
 });
 
 /* ── Project delete ── */

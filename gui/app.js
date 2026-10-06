@@ -137,35 +137,87 @@ function updateStatusBar() {
 }
 
 // ---------------------------------------------------------------------------
-// Project list rendering
+// Project list rendering (Two columns: Connected & Recent Changes / Status)
 // ---------------------------------------------------------------------------
 function renderProjects() {
-  const list = document.getElementById('projectList');
-  const projects = config.projects || [];
+  const connectedEl = document.getElementById('connectedList');
+  const changesEl = document.getElementById('changesList');
+  const connectedCountEl = document.getElementById('connectedCount');
+  const changesCountEl = document.getElementById('changesCount');
 
+  const projects = config.projects || [];
+  if (connectedCountEl) connectedCountEl.textContent = projects.length;
+
+  // 1. Render Connected Projects list
   if (projects.length === 0) {
-    list.innerHTML = '<div class="empty-state">No projects configured yet. Add one to get started.</div>';
+    connectedEl.innerHTML = '<div class="empty-state">No connected projects configured yet. Add one to get started.</div>';
+    changesEl.innerHTML = '<div class="empty-state">No monitored projects.</div>';
+    if (changesCountEl) changesCountEl.textContent = '0';
     return;
   }
 
-  list.innerHTML = '';
+  connectedEl.innerHTML = '';
   for (const project of projects) {
-    const mentions = (project.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || 'No developers configured';
+    const mentions = (project.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || 'None';
     const card = document.createElement('div');
     card.className = 'project-card';
     card.innerHTML = `
       <div class="project-card-info">
-        <div class="name">${escHtml(project.figmaFileName || project.figmaFileKey)}</div>
+        <div class="name">📐 ${escHtml(project.figmaFileName || project.figmaFileKey)}</div>
         <div class="meta">Figma: <code>${escHtml(project.figmaFileKey)}</code> → Jira: <strong>${escHtml(project.jiraIssueKey)}</strong></div>
         <div class="mentions">👥 ${escHtml(mentions)}</div>
       </div>
       <div class="project-card-actions">
         <button class="btn-secondary" onclick="openEditModal('${project.id}')">Edit</button>
-        <button class="btn-danger" onclick="deleteProject('${project.id}')">Remove</button>
+        <button class="btn-danger" onclick="deleteProject('${project.id}')">✕</button>
       </div>
     `;
-    list.appendChild(card);
+    connectedEl.appendChild(card);
   }
+
+  // 2. Render Recent Changes / Status column
+  renderChangesColumn();
+}
+
+function renderChangesColumn() {
+  const changesEl = document.getElementById('changesList');
+  const changesCountEl = document.getElementById('changesCount');
+  const projects = config.projects || [];
+
+  if (!lastRunResults || lastRunResults.length === 0) {
+    if (changesCountEl) changesCountEl.textContent = projects.length;
+    changesEl.innerHTML = projects.map(p => `
+      <div class="project-card">
+        <div class="project-card-info">
+          <div class="name">${escHtml(p.figmaFileName || p.figmaFileKey)}</div>
+          <div class="meta">Jira: <strong>${escHtml(p.jiraIssueKey)}</strong></div>
+          <span class="change-status no-changes">💤 Ready — pending next diff run</span>
+        </div>
+      </div>
+    `).join('');
+    return;
+  }
+
+  const icons = { posted: '✅', no_changes: '💤', first_run: '🔖', error: '❌' };
+  const badgeClasses = { posted: 'has-changes', no_changes: 'no-changes', first_run: 'baseline', error: 'has-changes' };
+  const labels = {
+    posted: r => `${r.changesCount} change${r.changesCount !== 1 ? 's' : ''} detected & posted to Jira`,
+    no_changes: () => 'No changes detected (synced)',
+    first_run: () => 'Baseline snapshot established',
+    error: r => `Error: ${r.error || 'Failed'}`
+  };
+
+  const activeChanges = lastRunResults.filter(r => r.status === 'posted').length;
+  if (changesCountEl) changesCountEl.textContent = `${activeChanges} changed / ${lastRunResults.length} total`;
+
+  changesEl.innerHTML = lastRunResults.map(r => `
+    <div class="project-card">
+      <div class="project-card-info">
+        <div class="name">${icons[r.status] || '•'} ${escHtml(r.figmaFileName || r.projectId)}</div>
+        <span class="change-status ${badgeClasses[r.status] || 'no-changes'}">${escHtml((labels[r.status] || (() => r.status))(r))}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 function escHtml(str) {
@@ -175,12 +227,27 @@ function escHtml(str) {
 // ---------------------------------------------------------------------------
 // Settings form
 // ---------------------------------------------------------------------------
-document.getElementById('settingsForm').addEventListener('submit', async e => {
-  e.preventDefault();
+function openSettingsModal() {
+  document.getElementById('settingsAlert').className = 'alert';
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+document.getElementById('btnOpenSettings').addEventListener('click', openSettingsModal);
+document.getElementById('settingsModalClose').addEventListener('click', closeSettingsModal);
+document.getElementById('settingsModalCancel').addEventListener('click', closeSettingsModal);
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('settingsModal')) closeSettingsModal();
+});
+
+document.getElementById('btnSaveSettings').addEventListener('click', async () => {
   const payload = {
     jiraBaseUrl: document.getElementById('jiraBaseUrl').value.trim(),
     jiraEmail: document.getElementById('jiraEmail').value.trim(),
-    schedule: document.getElementById('schedule').value.trim()
+    schedule: document.getElementById('schedule').value.trim() || '0 8 * * *'
   };
 
   const figmaToken = document.getElementById('figmaToken').value;
@@ -196,10 +263,18 @@ document.getElementById('settingsForm').addEventListener('submit', async e => {
   try {
     await apiPost('/api/config', payload);
     showAlert('settingsAlert', 'success', 'Settings saved.');
+    setTimeout(() => {
+      closeSettingsModal();
+    }, 1000);
     await loadConfig();
   } catch (err) {
     showAlert('settingsAlert', 'error', err.message);
   }
+});
+
+document.getElementById('settingsForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  document.getElementById('btnSaveSettings').click();
 });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +295,7 @@ document.getElementById('btnRunNow').addEventListener('click', async () => {
     lastRunTime = new Date().toISOString();
     lastRunResults = data.results || [];
     renderRunResults(lastRunResults);
+    renderProjects();
     updateStatusBar();
   } catch (err) {
     resultsEl.style.display = 'flex';
