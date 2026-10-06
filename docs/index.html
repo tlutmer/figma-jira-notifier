@@ -126,18 +126,30 @@
       display: block;
     }
 
+    /* ── Info banner ── */
+    .info-banner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
     /* ── Status bar ── */
     .status-bar {
       font-size: 12px;
       color: var(--muted);
       display: flex;
-      gap: 20px;
+      gap: 24px;
       flex-wrap: wrap;
       background: var(--surface);
-      padding: 10px 14px;
+      padding: 12px 16px;
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      margin-bottom: 20px;
+      margin-top: 18px;
+      margin-bottom: 24px;
     }
     .status-bar strong { color: var(--text); }
 
@@ -290,9 +302,9 @@
     Built by <a href="slack://user?team=T01234567&id=W_AMAYA_MALI" target="_blank" rel="noopener noreferrer">@Amaya Mali</a>, <a href="slack://user?team=T01234567&id=W_JONATHAN_MONAHAN" target="_blank" rel="noopener noreferrer">@Jonathan Monahan</a>, and <a href="slack://user?team=T01234567&id=W_TRENT_LUTMER" target="_blank" rel="noopener noreferrer">@TrentLutmer</a>
   </div>
   <div class="app-header-right">
-    <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener" class="gh-link">Github Repo</a>
+    <a href="https://github.com/tlutmer/figma-jira-notifier" target="_blank" rel="noopener" class="gh-link">GitHub repo</a>
     <button class="btn-secondary" id="btnOpenSettings">Settings</button>
-    <button class="btn-run" id="btnRunNow">Run Now</button>
+    <button class="btn-run" id="btnRunNow">Run now</button>
   </div>
 </header>
 
@@ -300,7 +312,7 @@
 
   <!-- ── Info banner ── -->
   <div class="info-banner" id="hostedNotice" style="display:none;">
-    <strong>Hosted Version:</strong> When opened on GitHub Pages, diffs run in-browser and require Jira CORS or a local server. For seamless automated background runs, clone the repo and run <code>npm start</code> (served at <code>http://localhost:3000</code>).
+    <strong>Hosted version:</strong> When opened on GitHub Pages, diffs run in-browser and require Jira CORS or a local server. For seamless automated background runs, clone the repo and run <code>npm start</code> (served at <code>http://localhost:3000</code>).
   </div>
 
   <!-- ── Status bar ── -->
@@ -317,11 +329,11 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:16px;">
     <div class="tabs-nav" style="margin-top:0; margin-bottom:0; flex:1;">
       <button class="tab-btn active" id="tabBtnConnected" data-tab="tabConnected">
-        <span>Connected Projects</span>
+        <span>Connected projects</span>
         <span class="badge" id="connectedCount">0</span>
       </button>
       <button class="tab-btn" id="tabBtnChanges" data-tab="tabChanges">
-        <span>Recent Changes & Activity</span>
+        <span>Recent changes and activity</span>
         <span class="badge" id="changesCount">0</span>
       </button>
     </div>
@@ -336,7 +348,7 @@
     <div class="tab-pane active" id="tabConnected">
       <div class="section">
         <div class="section-header">
-          <h2>Connected Projects</h2>
+          <h2>Connected projects</h2>
           <span class="badge" id="connectedCountBadge">0 configured</span>
         </div>
         <div class="section-body">
@@ -347,16 +359,16 @@
       </div>
     </div>
 
-    <!-- Tab 2: Recent Changes & Activity -->
+    <!-- Tab 2: Recent changes and activity -->
     <div class="tab-pane" id="tabChanges">
       <div class="section">
         <div class="section-header">
-          <h2>Recent Changes & Activity</h2>
+          <h2>Recent changes and activity</h2>
           <span class="badge" id="changesCountBadge">0</span>
         </div>
         <div class="section-body">
           <div id="changesList" class="project-list">
-            <div class="empty-state">No recent activity detected. Click "Run Now" to diff.</div>
+            <div class="empty-state">No recent activity detected. Click "Run now" to diff.</div>
           </div>
         </div>
       </div>
@@ -369,7 +381,7 @@
 <div class="modal-backdrop" id="settingsModal">
   <div class="modal">
     <div class="modal-header">
-      <h3>Global Settings</h3>
+      <h3>Global settings</h3>
       <button class="modal-close" id="settingsModalClose" aria-label="Close">✕</button>
     </div>
     <div class="modal-body">
@@ -514,7 +526,15 @@ function esc(str) {
 
 function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getUTCMonth()];
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  const hours = String(d.getUTCHours()).padStart(2, '0');
+  const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${month} ${day}, ${year} at ${hours}:${minutes} UTC`;
 }
 
 function describeSchedule(cron) {
@@ -974,7 +994,7 @@ async function executeRun(isAutomatic = false) {
   } finally {
     btn.disabled = false;
     btn.classList.remove('running');
-    btn.textContent = 'Run Now';
+    btn.textContent = 'Run now';
   }
 }
 
@@ -1257,6 +1277,19 @@ document.getElementById('modalSave').addEventListener('click', () => {
     .filter(Boolean);
 
   const projectId = document.getElementById('modalProjectId').value;
+
+  // Duplicate project validation
+  const existingProjects = config.projects || [];
+  const duplicate = existingProjects.find(p =>
+    p.id !== projectId &&
+    p.figmaFileKey.toLowerCase() === fileKey.toLowerCase() &&
+    p.jiraIssueKey.toLowerCase() === issueKey.toLowerCase()
+  );
+  if (duplicate) {
+    showAlert('modalAlert', 'error', 'Project already exists');
+    return;
+  }
+
   const newProject = {
     id: projectId,
     figmaFileKey: fileKey,
@@ -1266,7 +1299,7 @@ document.getElementById('modalSave').addEventListener('click', () => {
     mentionedUsers,
   };
 
-  const projects = [...(config.projects || [])];
+  const projects = [...existingProjects];
   const idx = projects.findIndex(p => p.id === projectId);
   if (idx >= 0) projects[idx] = newProject; else projects.push(newProject);
   config.projects = projects;

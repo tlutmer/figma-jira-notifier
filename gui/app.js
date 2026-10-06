@@ -85,7 +85,15 @@ function uuid() {
 
 function formatDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[d.getUTCMonth()];
+  const day = d.getUTCDate();
+  const year = d.getUTCFullYear();
+  const hours = String(d.getUTCHours()).padStart(2, '0');
+  const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${month} ${day}, ${year} at ${hours}:${minutes} UTC`;
 }
 
 /**
@@ -325,7 +333,7 @@ document.getElementById('btnRunNow').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     btn.classList.remove('running');
-    btn.textContent = 'Run Now';
+    btn.textContent = 'Run now';
   }
 });
 
@@ -515,6 +523,19 @@ document.getElementById('modalSave').addEventListener('click', async () => {
     .filter(Boolean);
 
   const projectId = document.getElementById('modalProjectId').value;
+
+  // Duplicate project validation
+  const existingProjects = config.projects || [];
+  const duplicate = existingProjects.find(p =>
+    p.id !== projectId &&
+    p.figmaFileKey.toLowerCase() === fileKey.toLowerCase() &&
+    p.jiraIssueKey.toLowerCase() === jiraKey.toLowerCase()
+  );
+  if (duplicate) {
+    showAlert('modalAlert', 'error', 'Project already exists');
+    return;
+  }
+
   const newProject = {
     id: projectId,
     figmaFileKey: fileKey,
@@ -524,7 +545,7 @@ document.getElementById('modalSave').addEventListener('click', async () => {
     mentionedUsers
   };
 
-  const projects = [...(config.projects || [])];
+  const projects = [...existingProjects];
   const idx = projects.findIndex(p => p.id === projectId);
   if (idx >= 0) {
     projects[idx] = newProject;
