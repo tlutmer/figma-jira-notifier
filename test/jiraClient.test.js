@@ -1,6 +1,8 @@
 'use strict';
 
-const { buildCommentAdf } = require('../src/jiraClient');
+const { buildCommentAdf, fetchWatchers } = require('../src/jiraClient');
+const axios = require('axios');
+jest.mock('axios');
 const treeBefore = require('./fixtures/tree-before.json');
 const treeAfter  = require('./fixtures/tree-after.json');
 const { diffTrees } = require('../src/differ');
@@ -219,6 +221,22 @@ describe('buildCommentAdf — ADF node validity', () => {
     'doc', 'paragraph', 'text', 'heading', 'bulletList',
     'listItem', 'mention', 'rule', 'hardBreak'
   ]);
+
+  test('fetchWatchers parses Jira watchers list correctly', async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        watchers: [
+          { accountId: 'acc1', displayName: 'Jane Dev', emailAddress: 'jane@ibm.com' },
+          { accountId: 'acc2', displayName: 'Bob Tester', emailAddress: '' }
+        ]
+      }
+    });
+
+    const watchers = await fetchWatchers('https://example.atlassian.net', 'user@ibm.com', 'token', 'PROJ-123');
+    expect(watchers.length).toBe(2);
+    expect(watchers[0]).toEqual({ accountId: 'acc1', displayName: 'Jane Dev', email: 'jane@ibm.com' });
+    expect(watchers[1].displayName).toBe('Bob Tester');
+  });
 
   test('all nodes use valid ADF types', () => {
     const adf = buildCommentAdf(diffResult, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, MENTIONED_USERS, SNAPSHOT_DATE);

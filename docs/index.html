@@ -294,7 +294,10 @@
 
       <div class="label-row" style="margin-bottom:8px;">
         <span>Frontend developers to @mention</span>
-        <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-secondary" id="btnSyncWatchers" style="font-size:12px; padding:4px 10px;" title="Fetch all watchers on this Jira ticket">👥 Fetch watchers</button>
+          <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
+        </div>
       </div>
       <div id="mentionRows"></div>
     </div>
@@ -1050,6 +1053,84 @@ document.getElementById('projectModal').addEventListener('click', e => {
 });
 document.getElementById('btnAddMention').addEventListener('click', () => {
   addMentionRow(document.getElementById('mentionRows'));
+});
+document.getElementById('btnSyncWatchers').addEventListener('click', async () => {
+  const rawJiraInput = document.getElementById('modalJiraKey').value.trim();
+  const { issueKey } = parseJiraInput(rawJiraInput);
+
+  if (!issueKey) {
+    showAlert('modalAlert', 'error', 'Enter a Jira ticket URL or key first.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSyncWatchers');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching…';
+
+  try {
+    let watchers = [];
+    if (window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')) {
+      const res = await fetch(`/api/jira/watchers?issueKey=${encodeURIComponent(issueKey)}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Fetch failed (${res.status})`);
+      }
+      const data = await res.json();
+      watchers = data.watchers || [];
+    } else {
+      // Browser direct call with credentials
+      if (!config.jiraBaseUrl || !config.jiraEmail || !config.jiraApiToken) {
+        throw new Error('Jira settings (base URL, email, API token) are required.');
+      }
+      const res = await fetch(`${config.jiraBaseUrl.replace(/\/$/, '')}/rest/api/3/issue/${issueKey}/watchers`, {
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${config.jiraEmail}:${config.jiraApiToken}`),
+          'Accept': 'application/json'
+        }
+      });
+      if (!res.ok) throw new Error(`Jira API error (${res.status})`);
+      const data = await res.json();
+      watchers = (data.watchers || []).map(w => ({
+        accountId: w.accountId,
+        displayName: w.displayName,
+        email: w.emailAddress || w.displayName || w.accountId
+      }));
+    }
+
+    if (watchers.length === 0) {
+      showAlert('modalAlert', 'error', `No watchers found on ${issueKey}.`);
+      return;
+    }
+
+    const container = document.getElementById('mentionRows');
+    const existing = new Set(
+      [...container.querySelectorAll('.mention-email')].map(i => i.value.trim().toLowerCase()).filter(Boolean)
+    );
+
+    let addedCount = 0;
+    for (const w of watchers) {
+      const email = (w.email || w.displayName || w.accountId || '').trim();
+      if (email && !existing.has(email.toLowerCase())) {
+        if (container.children.length === 1 && !container.querySelector('.mention-email').value.trim()) {
+          container.innerHTML = '';
+        }
+        addMentionRow(container, email);
+        existing.add(email.toLowerCase());
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
+      showAlert('modalAlert', 'success', `Added ${addedCount} watcher(s) from ${issueKey}.`);
+    } else {
+      showAlert('modalAlert', 'success', `All watchers from ${issueKey} are already added.`);
+    }
+  } catch (err) {
+    showAlert('modalAlert', 'error', `Failed to fetch watchers: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '👥 Fetch watchers';
+  }
 });
 
 /* ── Init ── */

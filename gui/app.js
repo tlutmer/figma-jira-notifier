@@ -341,6 +341,61 @@ document.getElementById('btnAddMention').addEventListener('click', () => {
   addMentionRow(document.getElementById('mentionRows'));
 });
 
+// ---- Fetch watchers from Jira ----
+document.getElementById('btnSyncWatchers').addEventListener('click', async () => {
+  const rawJiraInput = document.getElementById('modalJiraKey').value.trim();
+  const { issueKey } = parseJiraInput(rawJiraInput);
+
+  if (!issueKey) {
+    showAlert('modalAlert', 'error', 'Enter a Jira ticket URL or key first.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSyncWatchers');
+  btn.disabled = true;
+  btn.textContent = '⏳ Fetching…';
+
+  try {
+    const data = await apiGet(`/api/jira/watchers?issueKey=${encodeURIComponent(issueKey)}`);
+    const watchers = data.watchers || [];
+    if (watchers.length === 0) {
+      showAlert('modalAlert', 'error', `No watchers found on ${issueKey}.`);
+      return;
+    }
+
+    const container = document.getElementById('mentionRows');
+    // Get existing emails to avoid duplicates
+    const existing = new Set(
+      [...container.querySelectorAll('.mention-email')].map(i => i.value.trim().toLowerCase()).filter(Boolean)
+    );
+
+    let addedCount = 0;
+    for (const w of watchers) {
+      const email = (w.email || w.displayName || w.accountId || '').trim();
+      if (email && !existing.has(email.toLowerCase())) {
+        // If container only has an empty row, clear it first
+        if (container.children.length === 1 && !container.querySelector('.mention-email').value.trim()) {
+          container.innerHTML = '';
+        }
+        addMentionRow(container, email);
+        existing.add(email.toLowerCase());
+        addedCount++;
+      }
+    }
+
+    if (addedCount > 0) {
+      showAlert('modalAlert', 'success', `Added ${addedCount} watcher(s) from ${issueKey}.`);
+    } else {
+      showAlert('modalAlert', 'success', `All watchers from ${issueKey} are already added.`);
+    }
+  } catch (err) {
+    showAlert('modalAlert', 'error', `Failed to fetch watchers: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '👥 Fetch watchers';
+  }
+});
+
 // ---- Save project ----
 
 document.getElementById('modalSave').addEventListener('click', async () => {

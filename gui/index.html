@@ -115,7 +115,10 @@
 
       <div class="label-row">
         <span>Frontend developers to @mention</span>
-        <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-secondary" id="btnSyncWatchers" style="font-size:12px; padding:4px 10px;" title="Fetch all watchers on this Jira ticket">👥 Fetch watchers</button>
+          <button type="button" class="btn-secondary" id="btnAddMention" style="font-size:12px; padding:4px 10px;">+ Add developer</button>
+        </div>
       </div>
       <div id="mentionRows"></div>
     </div>

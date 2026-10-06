@@ -322,4 +322,37 @@ async function postComment(jiraBaseUrl, email, apiToken, issueKey, commentAdf) {
   }
 }
 
-module.exports = { postComment, buildCommentAdf };
+/**
+ * Fetches watchers for a Jira issue.
+ *
+ * @param {string} jiraBaseUrl  e.g. "https://your-org.atlassian.net"
+ * @param {string} email        Jira account email
+ * @param {string} apiToken     Jira API token
+ * @param {string} issueKey     e.g. "PROJ-123"
+ * @returns {Promise<Array<{accountId: string, displayName: string, email: string}>>}
+ */
+async function fetchWatchers(jiraBaseUrl, email, apiToken, issueKey) {
+  const url = `${jiraBaseUrl.replace(/\/$/, '')}/rest/api/3/issue/${issueKey}/watchers`;
+  const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
+
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        'Authorization': `Basic ${auth}`,
+        'Accept': 'application/json'
+      }
+    });
+    const watchers = (res.data && res.data.watchers) || [];
+    return watchers.map(w => ({
+      accountId: w.accountId,
+      displayName: w.displayName,
+      email: w.emailAddress || (w.displayName ? `${w.displayName.toLowerCase().replace(/\s+/g, '.')}@example.com` : w.accountId)
+    }));
+  } catch (err) {
+    const status = err.response ? err.response.status : 'network error';
+    const detail = err.response ? JSON.stringify(err.response.data) : err.message;
+    throw new Error(`Jira fetchWatchers failed for issue "${issueKey}" — ${status}: ${detail}`);
+  }
+}
+
+module.exports = { postComment, buildCommentAdf, fetchWatchers };
