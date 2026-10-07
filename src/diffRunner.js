@@ -5,7 +5,6 @@ const { fetchFileTree, fetchComments, postCommentToFigma } = require('./figmaCli
 const { getSnapshot, saveSnapshot } = require('./snapshotStore');
 const { diffTrees } = require('./differ');
 const { buildCommentAdf, postComment } = require('./jiraClient');
-const { recordRunChanges } = require('./routes/plugin');
 
 /**
  * Extracts the document tree from a snapshot data structure.
@@ -142,9 +141,6 @@ async function runProject(project, config) {
       jiraIssueKey,
       adf
     );
-
-    // Record changes in plugin cache
-    recordRunChanges(projectId, figmaFileKey, jiraIssueKey, diffResult, runAt);
 
     // Post frame-pinned changelog comments back to Figma for each updated screen
     try {
