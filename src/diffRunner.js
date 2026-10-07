@@ -142,11 +142,11 @@ async function runProject(project, config) {
       adfList
     );
 
-    // Post frame-pinned changelog comments back to Figma for each updated screen
+    // Post a single consolidated changelog comment back to Figma
     try {
-      await syncChangesToFigma(figmaFileKey, config.figmaToken, diffResult, runAt, jiraIssueKey);
+      await syncChangesToFigma(figmaFileKey, config.figmaToken, diffResult, runAt, jiraIssueKey, currentTree);
     } catch (figmaErr) {
-      console.warn(`[Runner] Note: Could not post changelog comments directly to Figma: ${figmaErr.message}`);
+      console.warn(`[Runner] Note: Could not post changelog comment to Figma: ${figmaErr.message}`);
     }
 
     // Save updated snapshot
@@ -187,20 +187,25 @@ async function runProject(project, config) {
  * @returns {Promise<Array>} Results array — one entry per project
  */
 /**
- * Groups diff items by frame/screen and posts pinned changelog comments back to Figma.
+ * Posts a single consolidated changelog comment per file back to Figma.
  * @param {string} fileKey
  * @param {string} token
  * @param {object} diffResult
  * @param {string} runAt ISO date string
  * @param {string} jiraIssueKey
+ * @param {object} [currentTree] Optional current Figma document node
  */
-async function syncChangesToFigma(fileKey, token, diffResult, runAt, jiraIssueKey) {
+async function syncChangesToFigma(fileKey, token, diffResult, runAt, jiraIssueKey, currentTree = null) {
   if (!token || !fileKey) return;
   const dateFormatted = new Date(runAt).toISOString().split('T')[0];
 
-  // Group diff changes by frameId/frameName
-  const screenMap = new Map();
+  const lines = [
+    `📅 [${dateFormatted}] Design Changelog (${jiraIssueKey}) — ${diffResult.totalChanges} Changes`,
+    ''
+  ];
 
+  // Group by page or screen
+  const screenMap = new Map();
   const allItems = [
     ...diffResult.added.map(n => ({ ...n, action: 'Added' })),
     ...diffResult.removed.map(n => ({ ...n, action: 'Removed' })),
@@ -208,34 +213,41 @@ async function syncChangesToFigma(fileKey, token, diffResult, runAt, jiraIssueKe
   ];
 
   for (const item of allItems) {
-    if (!item.frameName) continue;
-    const key = item.frameId || item.frameName;
-    if (!screenMap.has(key)) {
-      screenMap.set(key, { frameId: item.frameId, frameName: item.frameName, items: [] });
+    const screenKey = item.frameName || item.pageName || 'General';
+    if (!screenMap.has(screenKey)) {
+      screenMap.set(screenKey, []);
     }
-    screenMap.get(key).items.push(item);
+    screenMap.get(screenKey).push(item);
   }
 
-  for (const [, screen] of screenMap) {
-    const lines = [`[${dateFormatted}] Design Changelog (${jiraIssueKey}):`];
-    for (const item of screen.items) {
+  for (const [screenName, items] of screenMap) {
+    lines.push(`▶ ${screenName}:`);
+    for (const item of items) {
       if (item.action === 'Updated' && item.changes) {
         for (const change of item.changes) {
-          lines.push(`• ${item.name || item.type}: ${change}`);
+          lines.push(`  • ${item.name || item.type}: ${change}`);
         }
       } else {
-        lines.push(`• ${item.action}: ${item.name || item.type}`);
+        lines.push(`  • ${item.action}: ${item.name || item.type}`);
       }
     }
+    lines.push('');
+  }
 
-    const message = lines.join('\n');
-    const clientMeta = screen.frameId ? { node_id: screen.frameId, node_offset: { x: 0, y: 0 } } : null;
+  const message = lines.join('\n').trim();
 
-    try {
-      await postCommentToFigma(fileKey, token, message, clientMeta);
-    } catch (err) {
-      console.warn(`[Runner] Failed to post comment on frame "${screen.frameName}": ${err.message}`);
-    }
+  // Find first top-level frame to anchor if available, otherwise canvas origin
+  let clientMeta = { x: 0, y: 0 };
+  const firstFrameId = (diffResult.updated.find(n => n.frameId) || diffResult.added.find(n => n.frameId))?.frameId;
+  if (firstFrameId) {
+    clientMeta = { node_id: firstFrameId, node_offset: { x: 0, y: 0 } };
+  }
+
+  try {
+    await postCommentToFigma(fileKey, token, message, clientMeta);
+    console.log(`[Runner] Posted consolidated changelog comment to Figma for file ${fileKey}.`);
+  } catch (err) {
+    console.warn(`[Runner] Failed to post single comment to Figma: ${err.message}`);
   }
 }
 
