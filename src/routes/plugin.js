@@ -1,10 +1,5 @@
 'use strict';
 
-const { getConfig } = require('../configStore');
-const { getSnapshot } = require('../snapshotStore');
-const { diffTrees } = require('../differ');
-const { extractDocTree } = require('../diffRunner');
-
 // In-memory cache of last diff results per project
 let latestProjectChanges = new Map();
 
