@@ -5,6 +5,7 @@ const path = require('path');
 const { getConfigRoute, saveConfigRoute } = require('./routes/config');
 const { runNow } = require('./routes/run');
 const { getWatchersRoute } = require('./routes/jira');
+const { getPluginChanges } = require('./routes/plugin');
 const scheduler = require('./scheduler');
 
 const app = express();
@@ -34,6 +35,7 @@ app.get('/api/config', getConfigRoute);
 app.post('/api/config', saveConfigRoute);
 app.post('/api/run', runNow);
 app.get('/api/jira/watchers', getWatchersRoute);
+app.get('/api/plugin/latest-changes', getPluginChanges);
 
 // Fallback: serve index.html for any non-API route (SPA support)
 app.get('*', (req, res) => {

@@ -21,20 +21,20 @@ const TRACKED_TYPES = new Set([
  * @param {Map}    result      Accumulator map
  * @returns {Map<string, {node: object, pageName: string, frameName: string}>}
  */
-function flattenTree(node, pageName = '', frameName = '', result = new Map()) {
+function flattenTree(node, pageName = '', frameName = '', frameId = '', result = new Map()) {
   const currentPage  = node.type === 'CANVAS' ? node.name : pageName;
   // Treat top-level FRAMEs and SECTIONs directly under a page as the "screen"
-  const currentFrame = (node.type === 'FRAME' || node.type === 'SECTION') && pageName !== ''
-    ? node.name
-    : frameName;
+  const isTopFrame = (node.type === 'FRAME' || node.type === 'SECTION') && pageName !== '';
+  const currentFrame = isTopFrame ? node.name : frameName;
+  const currentFrameId = isTopFrame ? node.id : frameId;
 
   if (TRACKED_TYPES.has(node.type)) {
-    result.set(node.id, { node, pageName: currentPage, frameName: currentFrame });
+    result.set(node.id, { node, pageName: currentPage, frameName: currentFrame, frameId: currentFrameId });
   }
 
   if (Array.isArray(node.children)) {
     for (const child of node.children) {
-      flattenTree(child, currentPage, currentFrame, result);
+      flattenTree(child, currentPage, currentFrame, currentFrameId, result);
     }
   }
 
@@ -144,24 +144,24 @@ function diffTrees(oldTree, newTree, commentsDiff = {}) {
   const pageSet = new Set();
 
   // Find added and updated nodes
-  for (const [id, { node: newNode, pageName, frameName }] of newMap) {
+  for (const [id, { node: newNode, pageName, frameName, frameId }] of newMap) {
     if (!oldMap.has(id)) {
-      added.push({ id, name: newNode.name, type: newNode.type, pageName, frameName });
+      added.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, frameId });
       pageSet.add(pageName);
     } else {
       const { node: oldNode } = oldMap.get(id);
       const changes = describeChanges(oldNode, newNode);
       if (changes.length > 0) {
-        updated.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, changes });
+        updated.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, frameId, changes });
         pageSet.add(pageName);
       }
     }
   }
 
   // Find removed nodes
-  for (const [id, { node: oldNode, pageName, frameName }] of oldMap) {
+  for (const [id, { node: oldNode, pageName, frameName, frameId }] of oldMap) {
     if (!newMap.has(id)) {
-      removed.push({ id, name: oldNode.name, type: oldNode.type, pageName, frameName });
+      removed.push({ id, name: oldNode.name, type: oldNode.type, pageName, frameName, frameId });
       pageSet.add(pageName);
     }
   }

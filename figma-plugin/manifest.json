@@ -1,0 +1,11 @@
+{
+  "name": "Design Change Log Notes",
+  "id": "figma-jira-notifier-plugin",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["http://localhost:3000", "http://127.0.0.1:3000", "none"]
+  }
+}

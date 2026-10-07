@@ -1,6 +1,7 @@
 'use strict';
 
 const { diffTrees, flattenTree } = require('../src/differ');
+const { syncChangesToFigma } = require('../src/diffRunner');
 const treeBefore = require('./fixtures/tree-before.json');
 const treeAfter  = require('./fixtures/tree-after.json');
 
@@ -250,5 +251,11 @@ describe('diffTrees — no changes', () => {
     expect(result.removed.length).toBe(0);
     expect(result.updated.length).toBe(0);
     expect(result.comments.length).toBe(0);
+  });
+
+  test('includes frameId for nodes inside top-level screens', () => {
+    const result = diffTrees(treeBefore, treeAfter);
+    const withFrameId = result.updated.filter(n => Boolean(n.frameId));
+    expect(withFrameId.length).toBeGreaterThan(0);
   });
 });

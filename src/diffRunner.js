@@ -1,10 +1,11 @@
 'use strict';
 
 const { getConfig } = require('./configStore');
-const { fetchFileTree, fetchComments } = require('./figmaClient');
+const { fetchFileTree, fetchComments, postCommentToFigma } = require('./figmaClient');
 const { getSnapshot, saveSnapshot } = require('./snapshotStore');
 const { diffTrees } = require('./differ');
 const { buildCommentAdf, postComment } = require('./jiraClient');
+const { recordRunChanges } = require('./routes/plugin');
 
 /**
  * Extracts the document tree from a snapshot data structure.
@@ -142,6 +143,16 @@ async function runProject(project, config) {
       adf
     );
 
+    // Record changes in plugin cache
+    recordRunChanges(projectId, figmaFileKey, jiraIssueKey, diffResult, runAt);
+
+    // Post frame-pinned changelog comments back to Figma for each updated screen
+    try {
+      await syncChangesToFigma(figmaFileKey, config.figmaToken, diffResult, runAt, jiraIssueKey);
+    } catch (figmaErr) {
+      console.warn(`[Runner] Note: Could not post changelog comments directly to Figma: ${figmaErr.message}`);
+    }
+
     // Save updated snapshot
     const allCommentIds = Array.from(new Set([
       ...Array.from(knownCommentIds),
@@ -179,6 +190,59 @@ async function runProject(project, config) {
  *
  * @returns {Promise<Array>} Results array — one entry per project
  */
+/**
+ * Groups diff items by frame/screen and posts pinned changelog comments back to Figma.
+ * @param {string} fileKey
+ * @param {string} token
+ * @param {object} diffResult
+ * @param {string} runAt ISO date string
+ * @param {string} jiraIssueKey
+ */
+async function syncChangesToFigma(fileKey, token, diffResult, runAt, jiraIssueKey) {
+  if (!token || !fileKey) return;
+  const dateFormatted = new Date(runAt).toISOString().split('T')[0];
+
+  // Group diff changes by frameId/frameName
+  const screenMap = new Map();
+
+  const allItems = [
+    ...diffResult.added.map(n => ({ ...n, action: 'Added' })),
+    ...diffResult.removed.map(n => ({ ...n, action: 'Removed' })),
+    ...diffResult.updated.map(n => ({ ...n, action: 'Updated' }))
+  ];
+
+  for (const item of allItems) {
+    if (!item.frameName) continue;
+    const key = item.frameId || item.frameName;
+    if (!screenMap.has(key)) {
+      screenMap.set(key, { frameId: item.frameId, frameName: item.frameName, items: [] });
+    }
+    screenMap.get(key).items.push(item);
+  }
+
+  for (const [, screen] of screenMap) {
+    const lines = [`[${dateFormatted}] Design Changelog (${jiraIssueKey}):`];
+    for (const item of screen.items) {
+      if (item.action === 'Updated' && item.changes) {
+        for (const change of item.changes) {
+          lines.push(`• ${item.name || item.type}: ${change}`);
+        }
+      } else {
+        lines.push(`• ${item.action}: ${item.name || item.type}`);
+      }
+    }
+
+    const message = lines.join('\n');
+    const clientMeta = screen.frameId ? { node_id: screen.frameId, node_offset: { x: 0, y: 0 } } : null;
+
+    try {
+      await postCommentToFigma(fileKey, token, message, clientMeta);
+    } catch (err) {
+      console.warn(`[Runner] Failed to post comment on frame "${screen.frameName}": ${err.message}`);
+    }
+  }
+}
+
 async function runAllProjects() {
   const config = getConfig();
 
@@ -199,4 +263,4 @@ async function runAllProjects() {
   return results;
 }
 
-module.exports = { runAllProjects, extractDocTree, extractKnownCommentIds, extractKnownResolvedCommentIds };
+module.exports = { runAllProjects, extractDocTree, extractKnownCommentIds, extractKnownResolvedCommentIds, syncChangesToFigma };

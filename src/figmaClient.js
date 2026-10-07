@@ -59,4 +59,31 @@ async function fetchComments(fileKey, token) {
   }
 }
 
-module.exports = { fetchFileTree, fetchVersions, fetchComments };
+/**
+ * Posts a comment to a Figma file, optionally pinned to a node / canvas location.
+ * @param {string} fileKey
+ * @param {string} token  Figma personal access token
+ * @param {string} message Comment text
+ * @param {object} [clientMeta] Optional client_meta e.g. { node_id, node_offset: { x: 0, y: 0 } }
+ * @returns {Promise<object>} Created comment object
+ */
+async function postCommentToFigma(fileKey, token, message, clientMeta = null) {
+  try {
+    const payload = { message };
+    if (clientMeta) {
+      payload.client_meta = clientMeta;
+    }
+    const response = await axios.post(`${BASE_URL}/v1/files/${fileKey}/comments`, payload, {
+      headers: {
+        'X-Figma-Token': token,
+        'Content-Type': 'application/json'
+      }
+    });
+    return response.data;
+  } catch (err) {
+    const status = err.response ? err.response.status : 'network error';
+    throw new Error(`Figma postComment failed for key "${fileKey}" — ${status}: ${err.message}`);
+  }
+}
+
+module.exports = { fetchFileTree, fetchVersions, fetchComments, postCommentToFigma };
