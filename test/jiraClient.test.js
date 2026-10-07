@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildCommentAdf, fetchWatchers } = require('../src/jiraClient');
+const { buildCommentAdf, buildCommentAdfList, chunkAdfDocument, fetchWatchers } = require('../src/jiraClient');
 const axios = require('axios');
 jest.mock('axios');
 const treeBefore = require('./fixtures/tree-before.json');
@@ -278,6 +278,28 @@ describe('buildCommentAdf — ADF node validity', () => {
     const textNodes = collectNodes(adf, 'text');
     for (const node of textNodes) {
       expect(typeof node.text).toBe('string');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Chunking large ADF payloads
+// ---------------------------------------------------------------------------
+describe('chunkAdfDocument', () => {
+  test('chunks large ADF document when body size exceeds threshold', () => {
+    const header = [{ type: 'paragraph', content: [{ type: 'text', text: 'Header' }] }];
+    const footer = [{ type: 'paragraph', content: [{ type: 'text', text: 'Footer' }] }];
+    const body = Array.from({ length: 50 }, (_, i) => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: `Detailed long change description entry ${i}: `.repeat(15) }]
+    }));
+
+    const docs = chunkAdfDocument(header, body, footer, 2000);
+    expect(docs.length).toBeGreaterThan(1);
+    for (let i = 0; i < docs.length; i++) {
+      expect(docs[i].type).toBe('doc');
+      const text = extractText(docs[i]);
+      expect(text).toContain(`Part ${i + 1} of ${docs.length}`);
     }
   });
 });

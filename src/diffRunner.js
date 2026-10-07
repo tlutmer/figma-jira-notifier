@@ -4,7 +4,7 @@ const { getConfig } = require('./configStore');
 const { fetchFileTree, fetchComments, postCommentToFigma } = require('./figmaClient');
 const { getSnapshot, saveSnapshot } = require('./snapshotStore');
 const { diffTrees } = require('./differ');
-const { buildCommentAdf, postComment } = require('./jiraClient');
+const { buildCommentAdfList, postComment } = require('./jiraClient');
 
 /**
  * Extracts the document tree from a snapshot data structure.
@@ -125,7 +125,7 @@ async function runProject(project, config) {
     const runAt = new Date().toISOString();
     const snapshotDate = previousSnapshot._savedAt || null;
 
-    const adf = buildCommentAdf(
+    const adfList = buildCommentAdfList(
       diffResult,
       figmaFileName,
       figmaUrl,
@@ -139,7 +139,7 @@ async function runProject(project, config) {
       config.jiraEmail,
       config.jiraApiToken,
       jiraIssueKey,
-      adf
+      adfList
     );
 
     // Post frame-pinned changelog comments back to Figma for each updated screen
