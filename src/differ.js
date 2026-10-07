@@ -119,21 +119,22 @@ function describeChanges(oldNode, newNode) {
 }
 
 /**
- * Diffs two Figma document trees and returns a structured changelog.
+ * Diffs two Figma document trees and comments, returning a structured changelog.
  *
  * @param {object|null} oldTree  Previous snapshot's document node (null = first run)
  * @param {object}      newTree  Current document node from Figma API
- * @param {Array}       [newComments=[]] Array of new Figma comments
+ * @param {object|Array} [commentsDiff={}] Object with { newComments, resolvedComments, openComments } or Array of comments
  * @returns {{
  *   added: Array,
  *   removed: Array,
  *   updated: Array,
- *   comments: Array,
+ *   commentsDiff: { newComments: Array, resolvedComments: Array, openComments: Array },
+ *   commentsCount: number,
  *   totalChanges: number,
  *   pages: string[]
  * }}
  */
-function diffTrees(oldTree, newTree, newComments = []) {
+function diffTrees(oldTree, newTree, commentsDiff = {}) {
   const newMap = flattenTree(newTree);
   const oldMap = oldTree ? flattenTree(oldTree) : new Map();
 
@@ -165,14 +166,29 @@ function diffTrees(oldTree, newTree, newComments = []) {
     }
   }
 
-  const comments = Array.isArray(newComments) ? newComments : [];
-  const totalChanges = added.length + removed.length + updated.length + comments.length;
+  let formattedCommentsDiff = { newComments: [], resolvedComments: [], openComments: [] };
+  if (Array.isArray(commentsDiff)) {
+    formattedCommentsDiff.newComments = commentsDiff;
+  } else if (commentsDiff && typeof commentsDiff === 'object') {
+    formattedCommentsDiff = {
+      newComments: Array.isArray(commentsDiff.newComments) ? commentsDiff.newComments : [],
+      resolvedComments: Array.isArray(commentsDiff.resolvedComments) ? commentsDiff.resolvedComments : [],
+      openComments: Array.isArray(commentsDiff.openComments) ? commentsDiff.openComments : []
+    };
+  }
+
+  // Count new comments and newly resolved comments towards changes
+  const commentsCount = formattedCommentsDiff.newComments.length + formattedCommentsDiff.resolvedComments.length;
+  const totalChanges = added.length + removed.length + updated.length + commentsCount;
 
   return {
     added,
     removed,
     updated,
-    comments,
+    commentsDiff: formattedCommentsDiff,
+    // Keep backwards-compatible comments array pointing to newComments
+    comments: formattedCommentsDiff.newComments,
+    commentsCount,
     totalChanges,
     pages: [...pageSet].filter(Boolean)
   };

@@ -144,29 +144,57 @@ function buildScreenBlock(frameName, addedNodes, removedNodes, updatedNodes) {
   return content;
 }
 
+function formatCommentBullet(comment) {
+  const author = (comment.user && (comment.user.handle || comment.user.name)) || 'Unknown user';
+  const message = comment.message || '(no message)';
+  return [
+    adfText(`${author}: `, true),
+    adfText(message)
+  ];
+}
+
 /**
- * Builds the Comments section.
+ * Builds the Comments section (New, Completed/Resolved, and Currently Open comments).
  *
- * @param {Array} comments  Array of Figma comment objects
+ * @param {object|Array} commentsDiff  { newComments, resolvedComments, openComments } or array
  * @returns {Array} ADF node array
  */
-function buildCommentsSection(comments) {
-  if (!comments || comments.length === 0) return [];
+function buildCommentsSection(commentsDiff) {
+  if (!commentsDiff) return [];
 
-  const bullets = comments.map(comment => {
-    const author = (comment.user && (comment.user.handle || comment.user.name)) || 'Unknown user';
-    const message = comment.message || '(no message)';
-    return [
-      adfText(`${author}: `, true),
-      adfText(message)
-    ];
-  });
+  const newComments = Array.isArray(commentsDiff)
+    ? commentsDiff
+    : (commentsDiff.newComments || []);
+  const resolvedComments = Array.isArray(commentsDiff)
+    ? []
+    : (commentsDiff.resolvedComments || []);
+  const openComments = Array.isArray(commentsDiff)
+    ? []
+    : (commentsDiff.openComments || []);
 
-  return [
-    adfHeading(3, 'Comments'),
-    adfBulletList(bullets),
-    adfRule()
-  ];
+  if (newComments.length === 0 && resolvedComments.length === 0 && openComments.length === 0) {
+    return [];
+  }
+
+  const content = [adfHeading(3, 'Comments')];
+
+  if (newComments.length > 0) {
+    content.push(adfParagraph(adfText('New comments', true)));
+    content.push(adfBulletList(newComments.map(formatCommentBullet)));
+  }
+
+  if (resolvedComments.length > 0) {
+    content.push(adfParagraph(adfText('Completed comments', true)));
+    content.push(adfBulletList(resolvedComments.map(formatCommentBullet)));
+  }
+
+  if (openComments.length > 0) {
+    content.push(adfParagraph(adfText('Open comments', true)));
+    content.push(adfBulletList(openComments.map(formatCommentBullet)));
+  }
+
+  content.push(adfRule());
+  return content;
 }
 
 /**
@@ -251,7 +279,7 @@ function buildPageSections(added, removed, updated) {
  * @returns {object} ADF document
  */
 function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate) {
-  const { added, removed, updated, comments = [], totalChanges, pages } = diffResult;
+  const { added, removed, updated, commentsDiff, comments = [], totalChanges, pages } = diffResult;
   const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
 
   const headerContent = [adfText('Design Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
@@ -279,8 +307,9 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
 
   adfContent.push(adfRule());
 
-  if (comments.length > 0) {
-    adfContent.push(...buildCommentsSection(comments));
+  const activeCommentsDiff = commentsDiff || (comments.length > 0 ? { newComments: comments } : null);
+  if (activeCommentsDiff) {
+    adfContent.push(...buildCommentsSection(activeCommentsDiff));
   }
 
   if (added.length > 0 || removed.length > 0 || updated.length > 0) {
@@ -288,7 +317,6 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
   }
 
   if (mentionNodes.length > 0) {
-    // Only add a divider before mentions if the last element wasn't already a rule
     if (adfContent[adfContent.length - 1].type !== 'rule') {
       adfContent.push(adfRule());
     }

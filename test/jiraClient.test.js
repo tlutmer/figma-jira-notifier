@@ -83,19 +83,26 @@ describe('buildCommentAdf — document structure', () => {
 // Comments section in ADF
 // ---------------------------------------------------------------------------
 describe('buildCommentAdf — comments section', () => {
-  test('includes Comments section when comments are provided', () => {
+  test('includes Comments section with New, Completed, and Open categories', () => {
     const diffWithComments = {
       ...diffResult,
-      comments: [
-        { id: '101', user: { handle: 'DesignerDan' }, message: 'Please update button color.' }
-      ],
-      totalChanges: diffResult.totalChanges + 1
+      commentsDiff: {
+        newComments: [{ id: '101', user: { handle: 'DesignerDan' }, message: 'Please update button color.' }],
+        resolvedComments: [{ id: '102', user: { handle: 'Alice' }, message: 'Fixed alignment issues.' }],
+        openComments: [{ id: '103', user: { handle: 'Bob' }, message: 'Checking contrast on card.' }]
+      },
+      totalChanges: diffResult.totalChanges + 2
     };
     const adf = buildCommentAdf(diffWithComments, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
     const text = extractText(adf);
     expect(text).toContain('Comments');
+    expect(text).toContain('New comments');
     expect(text).toContain('DesignerDan:');
     expect(text).toContain('Please update button color.');
+    expect(text).toContain('Completed comments');
+    expect(text).toContain('Fixed alignment issues.');
+    expect(text).toContain('Open comments');
+    expect(text).toContain('Checking contrast on card.');
   });
 });
 

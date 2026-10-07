@@ -8,7 +8,7 @@ const { buildCommentAdf, postComment } = require('./jiraClient');
 
 /**
  * Extracts the document tree from a snapshot data structure.
- * Supports legacy format (document tree at root) and new format ({ document, knownCommentIds }).
+ * Supports legacy format (document tree at root) and new format ({ document, knownCommentIds, knownResolvedCommentIds }).
  * @param {object|null} snapshot
  * @returns {object|null}
  */
@@ -37,12 +37,25 @@ function extractKnownCommentIds(snapshot) {
 }
 
 /**
+ * Extracts known resolved comment IDs array from a snapshot data structure.
+ * @param {object|null} snapshot
+ * @returns {string[]}
+ */
+function extractKnownResolvedCommentIds(snapshot) {
+  if (!snapshot) return [];
+  if (Array.isArray(snapshot.knownResolvedCommentIds)) {
+    return snapshot.knownResolvedCommentIds;
+  }
+  return [];
+}
+
+/**
  * Runs the full diff pipeline for a single project config entry.
  *
  * Steps:
- *  1. Fetch current Figma document tree and comments
+ *  1. Fetch current Figma document tree and (if syncComments is enabled) comments
  *  2. Load previous snapshot
- *  3. Diff trees and find new comments (by ID set)
+ *  3. Diff trees and find new, completed, and open comments
  *  4. If changes exist, build ADF comment and post to Jira
  *  5. Save new snapshot (only after successful Jira post)
  *
@@ -51,17 +64,19 @@ function extractKnownCommentIds(snapshot) {
  * @returns {Promise<{projectId: string, status: 'posted'|'no_changes'|'first_run', changesCount: number, error?: string}>}
  */
 async function runProject(project, config) {
-  const { id: projectId, figmaFileKey, figmaUrl = '', figmaFileName, jiraIssueKey, mentionedUsers = [] } = project;
+  const { id: projectId, figmaFileKey, figmaUrl = '', figmaFileName, jiraIssueKey, mentionedUsers = [], syncComments = true } = project;
 
   try {
     console.log(`[Runner] Starting project "${figmaFileName}" (${figmaFileKey}) → ${jiraIssueKey}`);
 
     const [currentTree, currentComments] = await Promise.all([
       fetchFileTree(figmaFileKey, config.figmaToken),
-      fetchComments(figmaFileKey, config.figmaToken).catch(err => {
-        console.warn(`[Runner] Failed to fetch comments for "${figmaFileName}": ${err.message}`);
-        return [];
-      })
+      syncComments
+        ? fetchComments(figmaFileKey, config.figmaToken).catch(err => {
+            console.warn(`[Runner] Failed to fetch comments for "${figmaFileName}": ${err.message}`);
+            return [];
+          })
+        : Promise.resolve([])
     ]);
 
     const previousSnapshot = getSnapshot(figmaFileKey);
@@ -71,6 +86,7 @@ async function runProject(project, config) {
       const baselineSnapshot = {
         document: currentTree,
         knownCommentIds: currentComments.map(c => c.id).filter(Boolean),
+        knownResolvedCommentIds: currentComments.filter(c => Boolean(c.resolved_at)).map(c => c.id).filter(Boolean),
         _savedAt: new Date().toISOString()
       };
       saveSnapshot(figmaFileKey, baselineSnapshot);
@@ -80,11 +96,26 @@ async function runProject(project, config) {
 
     const previousDoc = extractDocTree(previousSnapshot);
     const knownCommentIds = new Set(extractKnownCommentIds(previousSnapshot));
+    const knownResolvedCommentIds = new Set(extractKnownResolvedCommentIds(previousSnapshot));
 
-    // Identify new comments that were not in knownCommentIds
-    const newComments = currentComments.filter(c => c && c.id && !knownCommentIds.has(c.id));
+    let commentsDiff = { newComments: [], resolvedComments: [], openComments: [] };
 
-    const diffResult = diffTrees(previousDoc, currentTree, newComments);
+    if (syncComments) {
+      // 1. New comments: IDs not seen in previous snapshot
+      const newComments = currentComments.filter(c => c && c.id && !knownCommentIds.has(c.id));
+
+      // 2. Completed comments: Was open before, now has resolved_at
+      const resolvedComments = currentComments.filter(c =>
+        c && c.id && c.resolved_at && !knownResolvedCommentIds.has(c.id) && knownCommentIds.has(c.id)
+      );
+
+      // 3. Open comments: Currently unresolved comments on the file
+      const openComments = currentComments.filter(c => c && c.id && !c.resolved_at);
+
+      commentsDiff = { newComments, resolvedComments, openComments };
+    }
+
+    const diffResult = diffTrees(previousDoc, currentTree, commentsDiff);
 
     if (diffResult.totalChanges === 0) {
       console.log(`[Runner] No changes detected for "${figmaFileName}" — skipping Jira comment.`);
@@ -117,14 +148,23 @@ async function runProject(project, config) {
       ...currentComments.map(c => c.id).filter(Boolean)
     ]));
 
+    const allResolvedCommentIds = Array.from(new Set([
+      ...Array.from(knownResolvedCommentIds),
+      ...currentComments.filter(c => Boolean(c.resolved_at)).map(c => c.id).filter(Boolean)
+    ]));
+
     const newSnapshot = {
       document: currentTree,
       knownCommentIds: allCommentIds,
+      knownResolvedCommentIds: allResolvedCommentIds,
       _savedAt: runAt
     };
     saveSnapshot(figmaFileKey, newSnapshot);
 
-    console.log(`[Runner] Posted ${diffResult.totalChanges} changes (${newComments.length} new comments) for "${figmaFileName}" to ${jiraIssueKey}.`);
+    const commentsSummary = syncComments
+      ? `(${commentsDiff.newComments.length} new, ${commentsDiff.resolvedComments.length} resolved comments)`
+      : '(comments disabled)';
+    console.log(`[Runner] Posted ${diffResult.totalChanges} changes ${commentsSummary} for "${figmaFileName}" to ${jiraIssueKey}.`);
     return { projectId, figmaFileName, status: 'posted', changesCount: diffResult.totalChanges };
 
   } catch (err) {
@@ -159,4 +199,4 @@ async function runAllProjects() {
   return results;
 }
 
-module.exports = { runAllProjects, extractDocTree, extractKnownCommentIds };
+module.exports = { runAllProjects, extractDocTree, extractKnownCommentIds, extractKnownResolvedCommentIds };
