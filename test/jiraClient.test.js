@@ -73,12 +73,29 @@ describe('buildCommentAdf — document structure', () => {
   });
 
   test('contains bold paragraph labels for Added, Updated, or Removed entries', () => {
-    // In the new format these are bold text nodes inside paragraphs/bulletList items,
-    // not heading nodes.
     const allText = extractText(adf);
-    // At least one of the change type labels must appear given the fixture has changes
     const hasAny = ['Added', 'Updated', 'Removed'].some(label => allText.includes(label));
     expect(hasAny).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Comments section in ADF
+// ---------------------------------------------------------------------------
+describe('buildCommentAdf — comments section', () => {
+  test('includes Comments section when comments are provided', () => {
+    const diffWithComments = {
+      ...diffResult,
+      comments: [
+        { id: '101', user: { handle: 'DesignerDan' }, message: 'Please update button color.' }
+      ],
+      totalChanges: diffResult.totalChanges + 1
+    };
+    const adf = buildCommentAdf(diffWithComments, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
+    const text = extractText(adf);
+    expect(text).toContain('Comments');
+    expect(text).toContain('DesignerDan:');
+    expect(text).toContain('Please update button color.');
   });
 });
 
@@ -108,7 +125,6 @@ describe('buildCommentAdf — header metadata', () => {
   });
 
   test('does NOT include the run timestamp (removed from output)', () => {
-    // Timestamps were intentionally removed from the Jira comment format.
     expect(extractText(adf)).not.toContain(RUN_AT);
   });
 
@@ -193,7 +209,6 @@ describe('buildCommentAdf — first run', () => {
 describe('buildCommentAdf — screen breakdown', () => {
   test('output contains "Screen:" labels for frames in the fixture', () => {
     const adf = buildCommentAdf(diffResult, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
-    // The fixture diff includes nodes with frameName set — expect at least one Screen: label
     const allText = extractText(adf);
     expect(allText).toContain('Screen:');
   });

@@ -41,4 +41,22 @@ async function fetchVersions(fileKey, token) {
   }
 }
 
-module.exports = { fetchFileTree, fetchVersions };
+/**
+ * Fetches all comments on a Figma file.
+ * @param {string} fileKey
+ * @param {string} token  Figma personal access token
+ * @returns {Promise<Array>} Array of comment objects
+ */
+async function fetchComments(fileKey, token) {
+  try {
+    const response = await axios.get(`${BASE_URL}/v1/files/${fileKey}/comments`, {
+      headers: { 'X-Figma-Token': token }
+    });
+    return (response.data && response.data.comments) || [];
+  } catch (err) {
+    const status = err.response ? err.response.status : 'network error';
+    throw new Error(`Figma fetchComments failed for key "${fileKey}" — ${status}: ${err.message}`);
+  }
+}
+
+module.exports = { fetchFileTree, fetchVersions, fetchComments };

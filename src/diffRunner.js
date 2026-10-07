@@ -1,18 +1,48 @@
 'use strict';
 
 const { getConfig } = require('./configStore');
-const { fetchFileTree } = require('./figmaClient');
+const { fetchFileTree, fetchComments } = require('./figmaClient');
 const { getSnapshot, saveSnapshot } = require('./snapshotStore');
 const { diffTrees } = require('./differ');
 const { buildCommentAdf, postComment } = require('./jiraClient');
 
 /**
+ * Extracts the document tree from a snapshot data structure.
+ * Supports legacy format (document tree at root) and new format ({ document, knownCommentIds }).
+ * @param {object|null} snapshot
+ * @returns {object|null}
+ */
+function extractDocTree(snapshot) {
+  if (!snapshot) return null;
+  if (snapshot.document && snapshot.document.id) {
+    return snapshot.document;
+  }
+  return snapshot;
+}
+
+/**
+ * Extracts known comment IDs array from a snapshot data structure.
+ * @param {object|null} snapshot
+ * @returns {string[]}
+ */
+function extractKnownCommentIds(snapshot) {
+  if (!snapshot) return [];
+  if (Array.isArray(snapshot.knownCommentIds)) {
+    return snapshot.knownCommentIds;
+  }
+  if (Array.isArray(snapshot._knownCommentIds)) {
+    return snapshot._knownCommentIds;
+  }
+  return [];
+}
+
+/**
  * Runs the full diff pipeline for a single project config entry.
  *
  * Steps:
- *  1. Fetch current Figma document tree
+ *  1. Fetch current Figma document tree and comments
  *  2. Load previous snapshot
- *  3. Diff the two trees
+ *  3. Diff trees and find new comments (by ID set)
  *  4. If changes exist, build ADF comment and post to Jira
  *  5. Save new snapshot (only after successful Jira post)
  *
@@ -26,17 +56,35 @@ async function runProject(project, config) {
   try {
     console.log(`[Runner] Starting project "${figmaFileName}" (${figmaFileKey}) → ${jiraIssueKey}`);
 
-    const currentTree = await fetchFileTree(figmaFileKey, config.figmaToken);
+    const [currentTree, currentComments] = await Promise.all([
+      fetchFileTree(figmaFileKey, config.figmaToken),
+      fetchComments(figmaFileKey, config.figmaToken).catch(err => {
+        console.warn(`[Runner] Failed to fetch comments for "${figmaFileName}": ${err.message}`);
+        return [];
+      })
+    ]);
+
     const previousSnapshot = getSnapshot(figmaFileKey);
 
     if (!previousSnapshot) {
       // First run — save baseline, nothing to diff yet
-      saveSnapshot(figmaFileKey, currentTree);
-      console.log(`[Runner] First run for "${figmaFileName}" — baseline snapshot saved. No comment posted.`);
+      const baselineSnapshot = {
+        document: currentTree,
+        knownCommentIds: currentComments.map(c => c.id).filter(Boolean),
+        _savedAt: new Date().toISOString()
+      };
+      saveSnapshot(figmaFileKey, baselineSnapshot);
+      console.log(`[Runner] First run for "${figmaFileName}" — baseline snapshot saved (${currentComments.length} comments recorded). No comment posted.`);
       return { projectId, figmaFileName, status: 'first_run', changesCount: 0 };
     }
 
-    const diffResult = diffTrees(previousSnapshot, currentTree);
+    const previousDoc = extractDocTree(previousSnapshot);
+    const knownCommentIds = new Set(extractKnownCommentIds(previousSnapshot));
+
+    // Identify new comments that were not in knownCommentIds
+    const newComments = currentComments.filter(c => c && c.id && !knownCommentIds.has(c.id));
+
+    const diffResult = diffTrees(previousDoc, currentTree, newComments);
 
     if (diffResult.totalChanges === 0) {
       console.log(`[Runner] No changes detected for "${figmaFileName}" — skipping Jira comment.`);
@@ -44,7 +92,6 @@ async function runProject(project, config) {
     }
 
     const runAt = new Date().toISOString();
-    // Use the savedAt timestamp embedded in the snapshot if present, otherwise null
     const snapshotDate = previousSnapshot._savedAt || null;
 
     const adf = buildCommentAdf(
@@ -64,11 +111,20 @@ async function runProject(project, config) {
       adf
     );
 
-    // Stamp the snapshot with save time before writing
-    currentTree._savedAt = runAt;
-    saveSnapshot(figmaFileKey, currentTree);
+    // Save updated snapshot
+    const allCommentIds = Array.from(new Set([
+      ...Array.from(knownCommentIds),
+      ...currentComments.map(c => c.id).filter(Boolean)
+    ]));
 
-    console.log(`[Runner] Posted ${diffResult.totalChanges} changes for "${figmaFileName}" to ${jiraIssueKey}.`);
+    const newSnapshot = {
+      document: currentTree,
+      knownCommentIds: allCommentIds,
+      _savedAt: runAt
+    };
+    saveSnapshot(figmaFileKey, newSnapshot);
+
+    console.log(`[Runner] Posted ${diffResult.totalChanges} changes (${newComments.length} new comments) for "${figmaFileName}" to ${jiraIssueKey}.`);
     return { projectId, figmaFileName, status: 'posted', changesCount: diffResult.totalChanges };
 
   } catch (err) {
@@ -103,4 +159,4 @@ async function runAllProjects() {
   return results;
 }
 
-module.exports = { runAllProjects };
+module.exports = { runAllProjects, extractDocTree, extractKnownCommentIds };

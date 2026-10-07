@@ -55,17 +55,19 @@ describe('diffTrees — structural counts', () => {
     expect(result).toHaveProperty('added');
     expect(result).toHaveProperty('removed');
     expect(result).toHaveProperty('updated');
+    expect(result).toHaveProperty('comments');
     expect(result).toHaveProperty('totalChanges');
     expect(result).toHaveProperty('pages');
     expect(Array.isArray(result.added)).toBe(true);
     expect(Array.isArray(result.removed)).toBe(true);
     expect(Array.isArray(result.updated)).toBe(true);
+    expect(Array.isArray(result.comments)).toBe(true);
     expect(Array.isArray(result.pages)).toBe(true);
   });
 
-  test('totalChanges equals sum of added + removed + updated', () => {
-    const { added, removed, updated, totalChanges } = result;
-    expect(totalChanges).toBe(added.length + removed.length + updated.length);
+  test('totalChanges equals sum of added + removed + updated + comments', () => {
+    const { added, removed, updated, comments, totalChanges } = result;
+    expect(totalChanges).toBe(added.length + removed.length + updated.length + comments.length);
   });
 
   test('pages array contains only non-empty strings', () => {
@@ -77,6 +79,16 @@ describe('diffTrees — structural counts', () => {
 
   test('detects the "Final" page as changed', () => {
     expect(result.pages).toContain('Final');
+  });
+
+  test('includes comments in totalChanges when provided', () => {
+    const mockComments = [
+      { id: 'c1', message: 'First comment', user: { handle: 'alice' } },
+      { id: 'c2', message: 'Second comment', user: { handle: 'bob' } }
+    ];
+    const res = diffTrees(treeBefore, treeBefore, mockComments);
+    expect(res.comments.length).toBe(2);
+    expect(res.totalChanges).toBe(2);
   });
 });
 
@@ -231,11 +243,12 @@ describe('diffTrees — first run', () => {
 // diffTrees — identical trees
 // ---------------------------------------------------------------------------
 describe('diffTrees — no changes', () => {
-  test('returns zero totalChanges when both trees are identical', () => {
+  test('returns zero totalChanges when both trees are identical and no comments', () => {
     const result = diffTrees(treeBefore, treeBefore);
     expect(result.totalChanges).toBe(0);
     expect(result.added.length).toBe(0);
     expect(result.removed.length).toBe(0);
     expect(result.updated.length).toBe(0);
+    expect(result.comments.length).toBe(0);
   });
 });

@@ -123,15 +123,17 @@ function describeChanges(oldNode, newNode) {
  *
  * @param {object|null} oldTree  Previous snapshot's document node (null = first run)
  * @param {object}      newTree  Current document node from Figma API
+ * @param {Array}       [newComments=[]] Array of new Figma comments
  * @returns {{
  *   added: Array,
  *   removed: Array,
  *   updated: Array,
+ *   comments: Array,
  *   totalChanges: number,
  *   pages: string[]
  * }}
  */
-function diffTrees(oldTree, newTree) {
+function diffTrees(oldTree, newTree, newComments = []) {
   const newMap = flattenTree(newTree);
   const oldMap = oldTree ? flattenTree(oldTree) : new Map();
 
@@ -163,12 +165,14 @@ function diffTrees(oldTree, newTree) {
     }
   }
 
-  const totalChanges = added.length + removed.length + updated.length;
+  const comments = Array.isArray(newComments) ? newComments : [];
+  const totalChanges = added.length + removed.length + updated.length + comments.length;
 
   return {
     added,
     removed,
     updated,
+    comments,
     totalChanges,
     pages: [...pageSet].filter(Boolean)
   };

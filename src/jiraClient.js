@@ -50,10 +50,6 @@ function adfRule() {
 }
 
 // ---------------------------------------------------------------------------
-// Grouping helpers
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -149,18 +145,32 @@ function buildScreenBlock(frameName, addedNodes, removedNodes, updatedNodes) {
 }
 
 /**
- * Builds the full page → sweeping → screen-by-screen changelog section.
+ * Builds the Comments section.
  *
- * Output per page:
- *   [Page heading]
- *   Sweeping changes        ← only if ≥3 nodes share the same change desc
- *   • Added   TypeLabel: Name
- *   • Removed TypeLabel: Name
- *   • Updated TypeLabel: Name — description
- *   Screen: [Frame name]
- *   • Added …
- *   • Removed …
- *   • Updated …
+ * @param {Array} comments  Array of Figma comment objects
+ * @returns {Array} ADF node array
+ */
+function buildCommentsSection(comments) {
+  if (!comments || comments.length === 0) return [];
+
+  const bullets = comments.map(comment => {
+    const author = (comment.user && (comment.user.handle || comment.user.name)) || 'Unknown user';
+    const message = comment.message || '(no message)';
+    return [
+      adfText(`${author}: `, true),
+      adfText(message)
+    ];
+  });
+
+  return [
+    adfHeading(3, 'Comments'),
+    adfBulletList(bullets),
+    adfRule()
+  ];
+}
+
+/**
+ * Builds the full page → sweeping → screen-by-screen changelog section.
  */
 function buildPageSections(added, removed, updated) {
   const allPages = new Set([
@@ -182,8 +192,6 @@ function buildPageSections(added, removed, updated) {
     const { sweepingDescs, restEntries: localUpdated } = partitionSweeping(pageUpdated);
 
     if (sweepingDescs.size > 0 || pageAdded.length > 0 || pageRemoved.length > 0) {
-      // Sweeping = changes that hit many nodes + all adds/removes at page level
-      // (adds/removes not inside a named frame go here too)
       const noFrameAdded   = pageAdded.filter(n => !n.frameName);
       const noFrameRemoved = pageRemoved.filter(n => !n.frameName);
 
@@ -195,7 +203,6 @@ function buildPageSections(added, removed, updated) {
         sweepingBullets.push([adfText('Removed', true)], ...removedBullets(noFrameRemoved));
       }
       if (sweepingDescs.size > 0) {
-        // Collect all nodes affected by sweeping change descs
         const sweepNodes = pageUpdated.filter(e =>
           (e.changes || []).some(c => sweepingDescs.has(c))
         ).map(e => ({ ...e, changes: (e.changes || []).filter(c => sweepingDescs.has(c)) }));
@@ -236,14 +243,15 @@ function buildPageSections(added, removed, updated) {
  * Builds the full ADF comment document for a diff result.
  *
  * @param {object}  diffResult        Output of differ.diffTrees()
- * @param {string}  figmaFileKey
+ * @param {string}  figmaFileName
+ * @param {string}  figmaUrl
  * @param {string}  runAt             ISO timestamp string
  * @param {Array}   mentionedUsers    Array of { displayName, jiraAccountId }
  * @param {string|null} snapshotDate  ISO timestamp of the baseline snapshot, or null
  * @returns {object} ADF document
  */
 function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate) {
-  const { added, removed, updated, totalChanges, pages } = diffResult;
+  const { added, removed, updated, comments = [], totalChanges, pages } = diffResult;
   const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
 
   const headerContent = [adfText('Design Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
@@ -271,10 +279,19 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
 
   adfContent.push(adfRule());
 
-  adfContent.push(...buildPageSections(added, removed, updated));
+  if (comments.length > 0) {
+    adfContent.push(...buildCommentsSection(comments));
+  }
+
+  if (added.length > 0 || removed.length > 0 || updated.length > 0) {
+    adfContent.push(...buildPageSections(added, removed, updated));
+  }
 
   if (mentionNodes.length > 0) {
-    adfContent.push(adfRule());
+    // Only add a divider before mentions if the last element wasn't already a rule
+    if (adfContent[adfContent.length - 1].type !== 'rule') {
+      adfContent.push(adfRule());
+    }
     adfContent.push(adfParagraph(adfText('Notifying: ', true), ...mentionNodes));
   }
 
@@ -355,4 +372,4 @@ async function fetchWatchers(jiraBaseUrl, email, apiToken, issueKey) {
   }
 }
 
-module.exports = { postComment, buildCommentAdf, fetchWatchers };
+module.exports = { postComment, buildCommentAdf, fetchWatchers, buildCommentsSection };
