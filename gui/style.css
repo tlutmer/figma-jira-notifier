@@ -300,6 +300,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-run:hover:not(:disabled) { opacity: 0.88; }
 .btn-run.running { background: var(--muted); border-color: var(--muted); }
 
+.btn-run-single {
+  background: #1a7f37;
+  color: #fff;
+  border-color: #1a7f37;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.btn-run-single:hover:not(:disabled) { opacity: 0.88; }
+
 /* ---- Project list ---- */
 .project-list { display: flex; flex-direction: column; gap: 10px; }
 .project-card {

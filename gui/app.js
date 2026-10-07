@@ -197,6 +197,7 @@ function renderProjects() {
         <div><span class="comments-tag ${commentsEnabled ? '' : 'disabled'}">Comments: ${commentsEnabled ? 'Enabled' : 'Disabled'}</span></div>
       </div>
       <div class="project-card-actions">
+        <button class="btn-run-single" id="btnRun-${project.id}" onclick="runSingleProject('${project.id}')">Run now</button>
         <button class="btn-secondary" onclick="openEditModal('${project.id}')">Edit</button>
         <button class="btn-danger" onclick="deleteProject('${project.id}')">✕</button>
       </div>
@@ -337,6 +338,46 @@ document.getElementById('btnRunNow').addEventListener('click', async () => {
     btn.textContent = 'Run now';
   }
 });
+
+async function runSingleProject(projectId) {
+  const btn = document.getElementById(`btnRun-${projectId}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+  }
+
+  const resultsEl = document.getElementById('runResults');
+  resultsEl.style.display = 'none';
+
+  try {
+    const data = await apiPost('/api/run', { projectId });
+    lastRunTime = new Date().toISOString();
+    const singleResult = data.results || [];
+    
+    // Merge or update in lastRunResults
+    if (!lastRunResults) lastRunResults = [];
+    for (const r of singleResult) {
+      const idx = lastRunResults.findIndex(existing => existing.projectId === r.projectId);
+      if (idx >= 0) {
+        lastRunResults[idx] = r;
+      } else {
+        lastRunResults.push(r);
+      }
+    }
+
+    renderRunResults(singleResult);
+    renderProjects();
+    updateStatusBar();
+  } catch (err) {
+    resultsEl.style.display = 'flex';
+    resultsEl.innerHTML = `<div class="result-row error"><span>${escHtml(err.message)}</span></div>`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Run now';
+    }
+  }
+}
 
 function renderRunResults(results) {
   const el = document.getElementById('runResults');

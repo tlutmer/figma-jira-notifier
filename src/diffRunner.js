@@ -259,4 +259,4 @@ async function runAllProjects() {
   return results;
 }
 
-module.exports = { runAllProjects, extractDocTree, extractKnownCommentIds, extractKnownResolvedCommentIds, syncChangesToFigma };
+module.exports = { runProject, runAllProjects, extractDocTree, extractKnownCommentIds, extractKnownResolvedCommentIds, syncChangesToFigma };
