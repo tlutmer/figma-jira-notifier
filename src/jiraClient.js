@@ -12,6 +12,14 @@ function adfText(text, bold = false) {
   return node;
 }
 
+function adfLink(text, href) {
+  return {
+    type: 'text',
+    text,
+    marks: [{ type: 'link', attrs: { href } }]
+  };
+}
+
 function adfParagraph(...inlineNodes) {
   return { type: 'paragraph', content: inlineNodes };
 }
@@ -57,11 +65,33 @@ function adfRule() {
 function typeLabel(type) {
   const map = {
     FRAME: 'Frame', GROUP: 'Group', COMPONENT: 'Component',
-    COMPONENT_SET: 'Component set', INSTANCE: 'Instance',
+    COMPONENT_SET: 'Component Set', INSTANCE: 'Instance',
     TEXT: 'Text', RECTANGLE: 'Rectangle', ELLIPSE: 'Ellipse',
-    VECTOR: 'Vector', BOOLEAN_OPERATION: 'Boolean op', SECTION: 'Section'
+    VECTOR: 'Vector', BOOLEAN_OPERATION: 'Boolean Op', SECTION: 'Section'
   };
   return map[type] || type;
+}
+
+/**
+ * Builds desktop figma:// and browser web URLs for a given node.
+ * @param {string} figmaFileKey
+ * @param {string} nodeId
+ * @param {string} [figmaUrl='']
+ * @returns {{ appUrl: string, browserUrl: string }}
+ */
+function buildNodeLinks(figmaFileKey, nodeId, figmaUrl = '') {
+  if (!figmaFileKey) return { appUrl: '', browserUrl: '' };
+  const encodedNodeId = nodeId ? encodeURIComponent(nodeId.replace(/:/g, '-')) : '';
+  const nodeQuery = encodedNodeId ? `?node-id=${encodedNodeId}` : '';
+
+  const appUrl = `figma://file/${figmaFileKey}${nodeQuery}`;
+  let browserUrl = `https://www.figma.com/design/${figmaFileKey}${nodeQuery}`;
+  if (figmaUrl && figmaUrl.startsWith('http')) {
+    const base = figmaUrl.split('?')[0];
+    browserUrl = `${base}${nodeQuery}`;
+  }
+
+  return { appUrl, browserUrl };
 }
 
 /**
@@ -92,56 +122,82 @@ function partitionSweeping(entries, threshold = 3) {
 // ---------------------------------------------------------------------------
 
 /**
- * Builds the bullet rows for a set of added nodes:
- *   • [TypeLabel] Name
+ * Formats a node header row with deep links and metadata tags:
+ * e.g. "Screen / Button (Browser) (Updated, Text, Page)"
+ *
+ * @param {object} node
+ * @param {string} action 'Added' | 'Removed' | 'Updated'
+ * @param {string} figmaFileKey
+ * @param {string} figmaUrl
+ * @returns {Array} ADF inline node list
  */
-function addedBullets(nodes) {
-  return [...new Map(nodes.map(n => [n.id, n])).values()]
-    .map(n => [adfText(`${typeLabel(n.type)}: ${n.name}`)]);
+function formatNodeHeader(node, action, figmaFileKey, figmaUrl) {
+  const { appUrl, browserUrl } = buildNodeLinks(figmaFileKey, node.id, figmaUrl);
+  const displayName = node.frameName ? `${node.frameName} / ${node.name}` : node.name;
+  const pageLabel = node.pageName || 'Page';
+  const metaBadge = `(${action}, ${typeLabel(node.type)}, ${pageLabel})`;
+
+  const inlines = [];
+
+  // 1. App deep link
+  if (appUrl) {
+    inlines.push(adfLink(displayName, appUrl));
+  } else {
+    inlines.push(adfText(displayName, true));
+  }
+
+  // 2. Browser link
+  if (browserUrl) {
+    inlines.push(adfText(' ('));
+    inlines.push(adfLink('Browser', browserUrl));
+    inlines.push(adfText(') '));
+  } else {
+    inlines.push(adfText(' '));
+  }
+
+  // 3. Metadata badge
+  inlines.push(adfText(metaBadge));
+
+  return inlines;
 }
 
 /**
- * Builds the bullet rows for a set of removed nodes.
+ * Formats clean, readable change descriptions:
+ * e.g. "text updated: Sign in → Log in" becomes 'Copy changed from "Sign in" to "Log in"'
  */
-function removedBullets(nodes) {
-  return [...new Map(nodes.map(n => [n.id, n])).values()]
-    .map(n => [adfText(`${typeLabel(n.type)}: ${n.name}`)]);
-}
-
-/**
- * Builds the bullet rows for a set of updated nodes:
- *   • [TypeLabel] Name — change description
- */
-function updatedBullets(nodes) {
-  const rows = [];
-  for (const node of nodes) {
-    for (const change of (node.changes || [])) {
-      rows.push([adfText(`${typeLabel(node.type)}: ${node.name} — ${change}`)]);
+function formatChangeDescription(desc) {
+  if (desc.startsWith('text updated: ')) {
+    const parts = desc.replace('text updated: ', '').split(' → ');
+    if (parts.length === 2) {
+      return `Copy changed from "${parts[0]}" to "${parts[1]}"`;
     }
   }
-  return rows;
+  if (desc.startsWith('renamed: ')) {
+    return desc.charAt(0).toUpperCase() + desc.slice(1);
+  }
+  return desc.charAt(0).toUpperCase() + desc.slice(1);
 }
 
 /**
- * Builds one "Screen: [frame]" block.
+ * Builds readable changelog entries for a node:
+ *   [Screen / Node Link (Browser) (Action, Type, Page)]
+ *   Change description line
  */
-function buildScreenBlock(frameName, addedNodes, removedNodes, updatedNodes) {
-  const content = [];
-  content.push(adfParagraph(adfText(`Screen: ${frameName}`, true)));
+function buildNodeEntryBlocks(node, action, figmaFileKey, figmaUrl) {
+  const blocks = [];
+  const headerInlines = formatNodeHeader(node, action, figmaFileKey, figmaUrl);
+  blocks.push(adfParagraph(...headerInlines));
 
-  const bullets = [];
-  if (addedNodes.length > 0) {
-    bullets.push([adfText('Added', true)], ...addedBullets(addedNodes));
+  if (action === 'Updated' && node.changes && node.changes.length > 0) {
+    const changeLines = node.changes.map(c => [adfText(formatChangeDescription(c))]);
+    blocks.push(adfBulletList(changeLines));
+  } else if (action === 'Added') {
+    blocks.push(adfBulletList([[adfText(`Layer added to ${node.frameName || node.pageName || 'canvas'}`)]]));
+  } else if (action === 'Removed') {
+    blocks.push(adfBulletList([[adfText(`Layer removed from ${node.frameName || node.pageName || 'canvas'}`)]]));
   }
-  if (removedNodes.length > 0) {
-    bullets.push([adfText('Removed', true)], ...removedBullets(removedNodes));
-  }
-  if (updatedNodes.length > 0) {
-    bullets.push([adfText('Updated', true)], ...updatedBullets(updatedNodes));
-  }
-  if (bullets.length > 0) content.push(adfBulletList(bullets));
 
-  return content;
+  return blocks;
 }
 
 function formatCommentBullet(comment) {
@@ -200,7 +256,7 @@ function buildCommentsSection(commentsDiff) {
 /**
  * Builds the full page → sweeping → screen-by-screen changelog section.
  */
-function buildPageSections(added, removed, updated) {
+function buildPageSections(added, removed, updated, figmaFileKey = '', figmaUrl = '') {
   const allPages = new Set([
     ...added.map(n => n.pageName || 'Unknown page'),
     ...removed.map(n => n.pageName || 'Unknown page'),
@@ -216,45 +272,15 @@ function buildPageSections(added, removed, updated) {
 
     content.push(adfHeading(3, page));
 
-    // --- Sweeping changes ---
-    const { sweepingDescs, restEntries: localUpdated } = partitionSweeping(pageUpdated);
-
-    if (sweepingDescs.size > 0 || pageAdded.length > 0 || pageRemoved.length > 0) {
-      const noFrameAdded   = pageAdded.filter(n => !n.frameName);
-      const noFrameRemoved = pageRemoved.filter(n => !n.frameName);
-
-      const sweepingBullets = [];
-      if (noFrameAdded.length > 0) {
-        sweepingBullets.push([adfText('Added', true)], ...addedBullets(noFrameAdded));
-      }
-      if (noFrameRemoved.length > 0) {
-        sweepingBullets.push([adfText('Removed', true)], ...removedBullets(noFrameRemoved));
-      }
-      if (sweepingDescs.size > 0) {
-        const sweepNodes = pageUpdated.filter(e =>
-          (e.changes || []).some(c => sweepingDescs.has(c))
-        ).map(e => ({ ...e, changes: (e.changes || []).filter(c => sweepingDescs.has(c)) }));
-        sweepingBullets.push([adfText('Updated', true)], ...updatedBullets(sweepNodes));
-      }
-
-      if (sweepingBullets.length > 0) {
-        content.push(adfParagraph(adfText('Sweeping changes', true)));
-        content.push(adfBulletList(sweepingBullets));
-      }
+    // Combine all unique updated, added, and removed nodes under this page
+    for (const node of pageUpdated) {
+      content.push(...buildNodeEntryBlocks(node, 'Updated', figmaFileKey, figmaUrl));
     }
-
-    // --- Per-screen (frame) breakdown ---
-    const frameNames = new Set([
-      ...pageAdded.filter(n => n.frameName).map(n => n.frameName),
-      ...pageRemoved.filter(n => n.frameName).map(n => n.frameName),
-      ...localUpdated.filter(n => n.frameName).map(n => n.frameName),
-    ]);
-
-    for (const frame of frameNames) {
-      const frameAdded   = pageAdded.filter(n => n.frameName === frame);
-      const frameRemoved = pageRemoved.filter(n => n.frameName === frame);
-      const frameUpdated = localUpdated.filter(n => n.frameName === frame);
-      content.push(...buildScreenBlock(frame, frameAdded, frameRemoved, frameUpdated));
+    for (const node of pageAdded) {
+      content.push(...buildNodeEntryBlocks(node, 'Added', figmaFileKey, figmaUrl));
+    }
+    for (const node of pageRemoved) {
+      content.push(...buildNodeEntryBlocks(node, 'Removed', figmaFileKey, figmaUrl));
     }
 
     content.push(adfRule());
@@ -415,8 +441,9 @@ function buildCommentAdfList(diffResult, figmaFileName, figmaUrl, runAt, mention
     bodyNodes.push(...buildCommentsSection(activeCommentsDiff));
   }
 
+  const fileKey = (figmaUrl ? (figmaUrl.match(/figma\.com\/(?:design|file)\/([A-Za-z0-9]+)/)?.[1] || '') : '') || figmaFileName;
   if (added.length > 0 || removed.length > 0 || updated.length > 0) {
-    bodyNodes.push(...buildPageSections(added, removed, updated));
+    bodyNodes.push(...buildPageSections(added, removed, updated, fileKey, figmaUrl));
   }
 
   const footerNodes = [];

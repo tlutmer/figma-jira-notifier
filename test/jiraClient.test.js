@@ -72,9 +72,9 @@ describe('buildCommentAdf — document structure', () => {
     expect(rules.length).toBeGreaterThan(0);
   });
 
-  test('contains bold paragraph labels for Added, Updated, or Removed entries', () => {
+  test('contains metadata badges for Added, Updated, or Removed entries', () => {
     const allText = extractText(adf);
-    const hasAny = ['Added', 'Updated', 'Removed'].some(label => allText.includes(label));
+    const hasAny = ['Updated', 'Added', 'Removed'].some(label => allText.includes(label));
     expect(hasAny).toBe(true);
   });
 });
@@ -213,11 +213,19 @@ describe('buildCommentAdf — first run', () => {
 // ---------------------------------------------------------------------------
 // Per-screen (frame) breakdown
 // ---------------------------------------------------------------------------
-describe('buildCommentAdf — screen breakdown', () => {
-  test('output contains "Screen:" labels for frames in the fixture', () => {
+describe('buildCommentAdf — screen breakdown and deep links', () => {
+  test('output contains figma:// protocol links and Browser links', () => {
     const adf = buildCommentAdf(diffResult, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
-    const allText = extractText(adf);
-    expect(allText).toContain('Screen:');
+    function collectLinks(node, acc = []) {
+      if (node.marks && node.marks.some(m => m.type === 'link')) acc.push(node);
+      if (Array.isArray(node.content)) node.content.forEach(c => collectLinks(c, acc));
+      return acc;
+    }
+    const links = collectLinks(adf);
+    const hasFigmaApp = links.some(l => l.marks.some(m => m.attrs.href.startsWith('figma://')));
+    const hasBrowser = links.some(l => l.text === 'Browser' && l.marks.some(m => m.attrs.href.includes('figma.com')));
+    expect(hasFigmaApp).toBe(true);
+    expect(hasBrowser).toBe(true);
   });
 
   test('page headings appear in the output', () => {
@@ -226,12 +234,27 @@ describe('buildCommentAdf — screen breakdown', () => {
     expect(headings.length).toBeGreaterThan(0);
   });
 
-  test('no old-format summary phrases appear in output', () => {
-    const adf = buildCommentAdf(diffResult, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
-    const allText = extractText(adf);
-    expect(allText).not.toContain('elements added');
-    expect(allText).not.toContain('layers updated');
-    expect(allText).not.toContain('elements removed');
+  test('formats copy changes into readable natural text', () => {
+    const customDiff = {
+      added: [],
+      removed: [],
+      updated: [{
+        id: '1:2',
+        name: 'Submit Button',
+        type: 'TEXT',
+        pageName: 'Final',
+        frameName: 'Login Flow',
+        changes: ['text updated: Sign in → Log in']
+      }],
+      totalChanges: 1,
+      pages: ['Final']
+    };
+    const adf = buildCommentAdf(customDiff, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
+    const text = extractText(adf);
+    expect(text).toContain('Login Flow / Submit Button');
+    expect(text).toContain('Browser');
+    expect(text).toContain('(Updated, Text, Final)');
+    expect(text).toContain('Copy changed from "Sign in" to "Log in"');
   });
 });
 
