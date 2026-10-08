@@ -21,20 +21,20 @@ const TRACKED_TYPES = new Set([
  * @param {Map}    result      Accumulator map
  * @returns {Map<string, {node: object, pageName: string, frameName: string}>}
  */
-function flattenTree(node, pageName = '', frameName = '', result = new Map()) {
+function flattenTree(node, pageName = '', frameName = '', frameId = '', result = new Map()) {
   const currentPage  = node.type === 'CANVAS' ? node.name : pageName;
   // Treat top-level FRAMEs and SECTIONs directly under a page as the "screen"
-  const currentFrame = (node.type === 'FRAME' || node.type === 'SECTION') && pageName !== ''
-    ? node.name
-    : frameName;
+  const isTopFrame = (node.type === 'FRAME' || node.type === 'SECTION') && pageName !== '';
+  const currentFrame = isTopFrame ? node.name : frameName;
+  const currentFrameId = isTopFrame ? node.id : frameId;
 
   if (TRACKED_TYPES.has(node.type)) {
-    result.set(node.id, { node, pageName: currentPage, frameName: currentFrame });
+    result.set(node.id, { node, pageName: currentPage, frameName: currentFrame, frameId: currentFrameId });
   }
 
   if (Array.isArray(node.children)) {
     for (const child of node.children) {
-      flattenTree(child, currentPage, currentFrame, result);
+      flattenTree(child, currentPage, currentFrame, currentFrameId, result);
     }
   }
 
@@ -119,19 +119,22 @@ function describeChanges(oldNode, newNode) {
 }
 
 /**
- * Diffs two Figma document trees and returns a structured changelog.
+ * Diffs two Figma document trees and comments, returning a structured changelog.
  *
  * @param {object|null} oldTree  Previous snapshot's document node (null = first run)
  * @param {object}      newTree  Current document node from Figma API
+ * @param {object|Array} [commentsDiff={}] Object with { newComments, resolvedComments, openComments } or Array of comments
  * @returns {{
  *   added: Array,
  *   removed: Array,
  *   updated: Array,
+ *   commentsDiff: { newComments: Array, resolvedComments: Array, openComments: Array },
+ *   commentsCount: number,
  *   totalChanges: number,
  *   pages: string[]
  * }}
  */
-function diffTrees(oldTree, newTree) {
+function diffTrees(oldTree, newTree, commentsDiff = {}) {
   const newMap = flattenTree(newTree);
   const oldMap = oldTree ? flattenTree(oldTree) : new Map();
 
@@ -141,34 +144,51 @@ function diffTrees(oldTree, newTree) {
   const pageSet = new Set();
 
   // Find added and updated nodes
-  for (const [id, { node: newNode, pageName, frameName }] of newMap) {
+  for (const [id, { node: newNode, pageName, frameName, frameId }] of newMap) {
     if (!oldMap.has(id)) {
-      added.push({ id, name: newNode.name, type: newNode.type, pageName, frameName });
+      added.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, frameId });
       pageSet.add(pageName);
     } else {
       const { node: oldNode } = oldMap.get(id);
       const changes = describeChanges(oldNode, newNode);
       if (changes.length > 0) {
-        updated.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, changes });
+        updated.push({ id, name: newNode.name, type: newNode.type, pageName, frameName, frameId, changes });
         pageSet.add(pageName);
       }
     }
   }
 
   // Find removed nodes
-  for (const [id, { node: oldNode, pageName, frameName }] of oldMap) {
+  for (const [id, { node: oldNode, pageName, frameName, frameId }] of oldMap) {
     if (!newMap.has(id)) {
-      removed.push({ id, name: oldNode.name, type: oldNode.type, pageName, frameName });
+      removed.push({ id, name: oldNode.name, type: oldNode.type, pageName, frameName, frameId });
       pageSet.add(pageName);
     }
   }
 
-  const totalChanges = added.length + removed.length + updated.length;
+  let formattedCommentsDiff = { newComments: [], resolvedComments: [], openComments: [] };
+  if (Array.isArray(commentsDiff)) {
+    formattedCommentsDiff.newComments = commentsDiff;
+  } else if (commentsDiff && typeof commentsDiff === 'object') {
+    formattedCommentsDiff = {
+      newComments: Array.isArray(commentsDiff.newComments) ? commentsDiff.newComments : [],
+      resolvedComments: Array.isArray(commentsDiff.resolvedComments) ? commentsDiff.resolvedComments : [],
+      openComments: Array.isArray(commentsDiff.openComments) ? commentsDiff.openComments : []
+    };
+  }
+
+  // Count new comments and newly resolved comments towards changes
+  const commentsCount = formattedCommentsDiff.newComments.length + formattedCommentsDiff.resolvedComments.length;
+  const totalChanges = added.length + removed.length + updated.length + commentsCount;
 
   return {
     added,
     removed,
     updated,
+    commentsDiff: formattedCommentsDiff,
+    // Keep backwards-compatible comments array pointing to newComments
+    comments: formattedCommentsDiff.newComments,
+    commentsCount,
     totalChanges,
     pages: [...pageSet].filter(Boolean)
   };

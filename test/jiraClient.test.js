@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildCommentAdf, fetchWatchers } = require('../src/jiraClient');
+const { buildCommentAdf, buildCommentAdfList, chunkAdfDocument, fetchWatchers } = require('../src/jiraClient');
 const axios = require('axios');
 jest.mock('axios');
 const treeBefore = require('./fixtures/tree-before.json');
@@ -73,12 +73,36 @@ describe('buildCommentAdf — document structure', () => {
   });
 
   test('contains bold paragraph labels for Added, Updated, or Removed entries', () => {
-    // In the new format these are bold text nodes inside paragraphs/bulletList items,
-    // not heading nodes.
     const allText = extractText(adf);
-    // At least one of the change type labels must appear given the fixture has changes
     const hasAny = ['Added', 'Updated', 'Removed'].some(label => allText.includes(label));
     expect(hasAny).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Comments section in ADF
+// ---------------------------------------------------------------------------
+describe('buildCommentAdf — comments section', () => {
+  test('includes Comments section with New, Completed, and Open categories', () => {
+    const diffWithComments = {
+      ...diffResult,
+      commentsDiff: {
+        newComments: [{ id: '101', user: { handle: 'DesignerDan' }, message: 'Please update button color.' }],
+        resolvedComments: [{ id: '102', user: { handle: 'Alice' }, message: 'Fixed alignment issues.' }],
+        openComments: [{ id: '103', user: { handle: 'Bob' }, message: 'Checking contrast on card.' }]
+      },
+      totalChanges: diffResult.totalChanges + 2
+    };
+    const adf = buildCommentAdf(diffWithComments, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
+    const text = extractText(adf);
+    expect(text).toContain('Comments');
+    expect(text).toContain('New comments');
+    expect(text).toContain('DesignerDan:');
+    expect(text).toContain('Please update button color.');
+    expect(text).toContain('Completed comments');
+    expect(text).toContain('Fixed alignment issues.');
+    expect(text).toContain('Open comments');
+    expect(text).toContain('Checking contrast on card.');
   });
 });
 
@@ -108,7 +132,6 @@ describe('buildCommentAdf — header metadata', () => {
   });
 
   test('does NOT include the run timestamp (removed from output)', () => {
-    // Timestamps were intentionally removed from the Jira comment format.
     expect(extractText(adf)).not.toContain(RUN_AT);
   });
 
@@ -193,7 +216,6 @@ describe('buildCommentAdf — first run', () => {
 describe('buildCommentAdf — screen breakdown', () => {
   test('output contains "Screen:" labels for frames in the fixture', () => {
     const adf = buildCommentAdf(diffResult, FIGMA_FILE_KEY, FIGMA_URL, RUN_AT, [], SNAPSHOT_DATE);
-    // The fixture diff includes nodes with frameName set — expect at least one Screen: label
     const allText = extractText(adf);
     expect(allText).toContain('Screen:');
   });
@@ -256,6 +278,28 @@ describe('buildCommentAdf — ADF node validity', () => {
     const textNodes = collectNodes(adf, 'text');
     for (const node of textNodes) {
       expect(typeof node.text).toBe('string');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Chunking large ADF payloads
+// ---------------------------------------------------------------------------
+describe('chunkAdfDocument', () => {
+  test('chunks large ADF document when body size exceeds threshold', () => {
+    const header = [{ type: 'paragraph', content: [{ type: 'text', text: 'Header' }] }];
+    const footer = [{ type: 'paragraph', content: [{ type: 'text', text: 'Footer' }] }];
+    const body = Array.from({ length: 50 }, (_, i) => ({
+      type: 'paragraph',
+      content: [{ type: 'text', text: `Detailed long change description entry ${i}: `.repeat(15) }]
+    }));
+
+    const docs = chunkAdfDocument(header, body, footer, 2000);
+    expect(docs.length).toBeGreaterThan(1);
+    for (let i = 0; i < docs.length; i++) {
+      expect(docs[i].type).toBe('doc');
+      const text = extractText(docs[i]);
+      expect(text).toContain(`Part ${i + 1} of ${docs.length}`);
     }
   });
 });

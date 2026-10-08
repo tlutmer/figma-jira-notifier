@@ -145,7 +145,6 @@ function updateStatusBar() {
 }
 
 // ---------------------------------------------------------------------------
-// ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -187,6 +186,7 @@ function renderProjects() {
   connectedEl.innerHTML = '';
   for (const project of projects) {
     const mentions = (project.mentionedUsers || []).map(u => (typeof u === 'string' ? u : (u.email || u.displayName || u.jiraAccountId))).join(', ') || 'None';
+    const commentsEnabled = project.syncComments !== false;
     const card = document.createElement('div');
     card.className = 'project-card';
     card.innerHTML = `
@@ -194,8 +194,10 @@ function renderProjects() {
         <div class="name">${escHtml(project.figmaFileName || project.figmaFileKey)}</div>
         <div class="meta">Figma: <code>${escHtml(project.figmaFileKey)}</code> -> Jira: <strong>${escHtml(project.jiraIssueKey)}</strong></div>
         <div class="mentions">Mentions: ${escHtml(mentions)}</div>
+        <div><span class="comments-tag ${commentsEnabled ? '' : 'disabled'}">Comments: ${commentsEnabled ? 'Enabled' : 'Disabled'}</span></div>
       </div>
       <div class="project-card-actions">
+        <button class="btn-run-single" id="btnRun-${project.id}" onclick="runSingleProject('${project.id}')">Run now</button>
         <button class="btn-secondary" onclick="openEditModal('${project.id}')">Edit</button>
         <button class="btn-danger" onclick="deleteProject('${project.id}')">✕</button>
       </div>
@@ -337,6 +339,46 @@ document.getElementById('btnRunNow').addEventListener('click', async () => {
   }
 });
 
+async function runSingleProject(projectId) {
+  const btn = document.getElementById(`btnRun-${projectId}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+  }
+
+  const resultsEl = document.getElementById('runResults');
+  resultsEl.style.display = 'none';
+
+  try {
+    const data = await apiPost('/api/run', { projectId });
+    lastRunTime = new Date().toISOString();
+    const singleResult = data.results || [];
+    
+    // Merge or update in lastRunResults
+    if (!lastRunResults) lastRunResults = [];
+    for (const r of singleResult) {
+      const idx = lastRunResults.findIndex(existing => existing.projectId === r.projectId);
+      if (idx >= 0) {
+        lastRunResults[idx] = r;
+      } else {
+        lastRunResults.push(r);
+      }
+    }
+
+    renderRunResults(singleResult);
+    renderProjects();
+    updateStatusBar();
+  } catch (err) {
+    resultsEl.style.display = 'flex';
+    resultsEl.innerHTML = `<div class="result-row error"><span>${escHtml(err.message)}</span></div>`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Run now';
+    }
+  }
+}
+
 function renderRunResults(results) {
   const el = document.getElementById('runResults');
   if (!results || results.length === 0) {
@@ -375,6 +417,7 @@ function openAddModal() {
   document.getElementById('modalFileKey').value = '';
   document.getElementById('modalFileName').value = '';
   document.getElementById('modalJiraKey').value = '';
+  document.getElementById('modalSyncComments').checked = true;
   renderMentionRows([]);
   document.getElementById('modalAlert').className = 'alert';
   document.getElementById('projectModal').classList.add('open');
@@ -389,6 +432,7 @@ function openEditModal(projectId) {
   document.getElementById('modalFileKey').value = project.figmaUrl || project.figmaFileKey || '';
   document.getElementById('modalFileName').value = project.figmaFileName || '';
   document.getElementById('modalJiraKey').value = project.jiraIssueKey || '';
+  document.getElementById('modalSyncComments').checked = project.syncComments !== false;
   renderMentionRows(project.mentionedUsers || []);
   document.getElementById('modalAlert').className = 'alert';
   document.getElementById('projectModal').classList.add('open');
@@ -508,6 +552,7 @@ document.getElementById('modalSave').addEventListener('click', async () => {
   const fileName = document.getElementById('modalFileName').value.trim();
   const rawJiraInput = document.getElementById('modalJiraKey').value.trim();
   const { issueKey: jiraKey } = parseJiraInput(rawJiraInput);
+  const syncComments = document.getElementById('modalSyncComments').checked;
 
   if (!fileKey || !jiraKey) {
     showAlert('modalAlert', 'error', 'Figma URL and Jira ticket URL are required.');
@@ -542,6 +587,7 @@ document.getElementById('modalSave').addEventListener('click', async () => {
     figmaUrl: figmaUrl || '',
     figmaFileName: fileName || fileKey,
     jiraIssueKey: jiraKey,
+    syncComments,
     mentionedUsers
   };
 

@@ -50,10 +50,6 @@ function adfRule() {
 }
 
 // ---------------------------------------------------------------------------
-// Grouping helpers
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -148,19 +144,61 @@ function buildScreenBlock(frameName, addedNodes, removedNodes, updatedNodes) {
   return content;
 }
 
+function formatCommentBullet(comment) {
+  const author = (comment.user && (comment.user.handle || comment.user.name)) || 'Unknown user';
+  const message = comment.message || '(no message)';
+  return [
+    adfText(`${author}: `, true),
+    adfText(message)
+  ];
+}
+
+/**
+ * Builds the Comments section (New, Completed/Resolved, and Currently Open comments).
+ *
+ * @param {object|Array} commentsDiff  { newComments, resolvedComments, openComments } or array
+ * @returns {Array} ADF node array
+ */
+function buildCommentsSection(commentsDiff) {
+  if (!commentsDiff) return [];
+
+  const newComments = Array.isArray(commentsDiff)
+    ? commentsDiff
+    : (commentsDiff.newComments || []);
+  const resolvedComments = Array.isArray(commentsDiff)
+    ? []
+    : (commentsDiff.resolvedComments || []);
+  const openComments = Array.isArray(commentsDiff)
+    ? []
+    : (commentsDiff.openComments || []);
+
+  if (newComments.length === 0 && resolvedComments.length === 0 && openComments.length === 0) {
+    return [];
+  }
+
+  const content = [adfHeading(3, 'Comments')];
+
+  if (newComments.length > 0) {
+    content.push(adfParagraph(adfText('New comments', true)));
+    content.push(adfBulletList(newComments.map(formatCommentBullet)));
+  }
+
+  if (resolvedComments.length > 0) {
+    content.push(adfParagraph(adfText('Completed comments', true)));
+    content.push(adfBulletList(resolvedComments.map(formatCommentBullet)));
+  }
+
+  if (openComments.length > 0) {
+    content.push(adfParagraph(adfText('Open comments', true)));
+    content.push(adfBulletList(openComments.map(formatCommentBullet)));
+  }
+
+  content.push(adfRule());
+  return content;
+}
+
 /**
  * Builds the full page → sweeping → screen-by-screen changelog section.
- *
- * Output per page:
- *   [Page heading]
- *   Sweeping changes        ← only if ≥3 nodes share the same change desc
- *   • Added   TypeLabel: Name
- *   • Removed TypeLabel: Name
- *   • Updated TypeLabel: Name — description
- *   Screen: [Frame name]
- *   • Added …
- *   • Removed …
- *   • Updated …
  */
 function buildPageSections(added, removed, updated) {
   const allPages = new Set([
@@ -182,8 +220,6 @@ function buildPageSections(added, removed, updated) {
     const { sweepingDescs, restEntries: localUpdated } = partitionSweeping(pageUpdated);
 
     if (sweepingDescs.size > 0 || pageAdded.length > 0 || pageRemoved.length > 0) {
-      // Sweeping = changes that hit many nodes + all adds/removes at page level
-      // (adds/removes not inside a named frame go here too)
       const noFrameAdded   = pageAdded.filter(n => !n.frameName);
       const noFrameRemoved = pageRemoved.filter(n => !n.frameName);
 
@@ -195,7 +231,6 @@ function buildPageSections(added, removed, updated) {
         sweepingBullets.push([adfText('Removed', true)], ...removedBullets(noFrameRemoved));
       }
       if (sweepingDescs.size > 0) {
-        // Collect all nodes affected by sweeping change descs
         const sweepNodes = pageUpdated.filter(e =>
           (e.changes || []).some(c => sweepingDescs.has(c))
         ).map(e => ({ ...e, changes: (e.changes || []).filter(c => sweepingDescs.has(c)) }));
@@ -236,14 +271,117 @@ function buildPageSections(added, removed, updated) {
  * Builds the full ADF comment document for a diff result.
  *
  * @param {object}  diffResult        Output of differ.diffTrees()
- * @param {string}  figmaFileKey
+ * @param {string}  figmaFileName
+ * @param {string}  figmaUrl
  * @param {string}  runAt             ISO timestamp string
  * @param {Array}   mentionedUsers    Array of { displayName, jiraAccountId }
  * @param {string|null} snapshotDate  ISO timestamp of the baseline snapshot, or null
  * @returns {object} ADF document
  */
+/**
+ * Splits an array of body content ADF nodes into chunks such that the serialized
+ * JSON string of each document stays well under Jira's 32,768 character limit.
+ *
+ * @param {Array} headerNodes
+ * @param {Array} bodyNodes
+ * @param {Array} footerNodes
+ * @param {number} [maxCharsPerDoc=24000]
+ * @returns {Array<object>} Array of valid ADF documents
+ */
+function chunkAdfDocument(headerNodes, bodyNodes, footerNodes, maxCharsPerDoc = 24000) {
+  if (bodyNodes.length === 0) {
+    return [{
+      version: 1,
+      type: 'doc',
+      content: [...headerNodes, ...footerNodes]
+    }];
+  }
+
+  const chunks = [];
+  let currentBody = [];
+
+  function calcDocSize(body) {
+    const doc = {
+      version: 1,
+      type: 'doc',
+      content: [...headerNodes, ...body, ...footerNodes]
+    };
+    return JSON.stringify(doc).length;
+  }
+
+  for (const node of bodyNodes) {
+    const testBody = [...currentBody, node];
+    if (currentBody.length > 0 && calcDocSize(testBody) > maxCharsPerDoc) {
+      chunks.push(currentBody);
+      currentBody = [node];
+    } else {
+      currentBody.push(node);
+    }
+  }
+
+  if (currentBody.length > 0) {
+    chunks.push(currentBody);
+  }
+
+  const totalParts = chunks.length;
+  if (totalParts <= 1) {
+    return [{
+      version: 1,
+      type: 'doc',
+      content: [...headerNodes, ...(chunks[0] || []), ...footerNodes]
+    }];
+  }
+
+  return chunks.map((chunkNodes, index) => {
+    const partNum = index + 1;
+    // Prefix header with Part indicator
+    const partHeaderNodes = headerNodes.map((hNode, hIdx) => {
+      if (hIdx === 0 && hNode.type === 'paragraph' && Array.isArray(hNode.content)) {
+        return {
+          ...hNode,
+          content: [
+            ...hNode.content,
+            adfText(` (Part ${partNum} of ${totalParts})`, true)
+          ]
+        };
+      }
+      return hNode;
+    });
+
+    return {
+      version: 1,
+      type: 'doc',
+      content: [
+        ...partHeaderNodes,
+        ...chunkNodes,
+        ...(partNum === totalParts ? footerNodes : [])
+      ]
+    };
+  });
+}
+
+/**
+ * Builds ADF comment document(s) for a diff result, automatically chunking
+ * into multiple documents if content exceeds Jira's size limit.
+ *
+ * @param {object}  diffResult        Output of differ.diffTrees()
+ * @param {string}  figmaFileName
+ * @param {string}  figmaUrl
+ * @param {string}  runAt             ISO timestamp string
+ * @param {Array}   mentionedUsers    Array of { displayName, jiraAccountId }
+ * @param {string|null} snapshotDate  ISO timestamp of the baseline snapshot, or null
+ * @returns {object} Single ADF document for backward compatibility
+ */
 function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate) {
-  const { added, removed, updated, totalChanges, pages } = diffResult;
+  const docs = buildCommentAdfList(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate);
+  return docs[0];
+}
+
+/**
+ * Builds a list of ADF comment documents (1 or more if chunked).
+ */
+function buildCommentAdfList(diffResult, figmaFileName, figmaUrl, runAt, mentionedUsers, snapshotDate) {
+  const { added, removed, updated, commentsDiff, comments = [], totalChanges, pages } = diffResult;
   const pagesLabel = pages.length > 0 ? pages.join(', ') : 'Unknown';
 
   const headerContent = [adfText('Design Changelog — ', false), adfText(`${totalChanges} Changes`, true)];
@@ -259,30 +397,35 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
     : adfText(figmaFileName);
   const fileRowNodes = [adfText('File: ', true), fileNameNode];
 
-  const adfContent = [
+  const headerNodes = [
     adfParagraph(...headerContent),
     adfParagraph(...fileRowNodes),
     adfParagraph(adfText('Pages: ', true), adfText(pagesLabel)),
   ];
 
   if (!snapshotDate) {
-    adfContent.push(adfParagraph(adfText('No previous snapshot found. This is the first run — baseline saved, no diff to report.')));
+    headerNodes.push(adfParagraph(adfText('No previous snapshot found. This is the first run — baseline saved, no diff to report.')));
   }
 
-  adfContent.push(adfRule());
+  headerNodes.push(adfRule());
 
-  adfContent.push(...buildPageSections(added, removed, updated));
+  const bodyNodes = [];
+  const activeCommentsDiff = commentsDiff || (comments.length > 0 ? { newComments: comments } : null);
+  if (activeCommentsDiff) {
+    bodyNodes.push(...buildCommentsSection(activeCommentsDiff));
+  }
 
+  if (added.length > 0 || removed.length > 0 || updated.length > 0) {
+    bodyNodes.push(...buildPageSections(added, removed, updated));
+  }
+
+  const footerNodes = [];
   if (mentionNodes.length > 0) {
-    adfContent.push(adfRule());
-    adfContent.push(adfParagraph(adfText('Notifying: ', true), ...mentionNodes));
+    footerNodes.push(adfRule());
+    footerNodes.push(adfParagraph(adfText('Notifying: ', true), ...mentionNodes));
   }
 
-  return {
-    version: 1,
-    type: 'doc',
-    content: adfContent
-  };
+  return chunkAdfDocument(headerNodes, bodyNodes, footerNodes);
 }
 
 // ---------------------------------------------------------------------------
@@ -302,23 +445,26 @@ function buildCommentAdf(diffResult, figmaFileName, figmaUrl, runAt, mentionedUs
 async function postComment(jiraBaseUrl, email, apiToken, issueKey, commentAdf) {
   const url = `${jiraBaseUrl}/rest/api/3/issue/${issueKey}/comment`;
   const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
+  const adfList = Array.isArray(commentAdf) ? commentAdf : [commentAdf];
 
-  try {
-    await axios.post(
-      url,
-      { body: commentAdf },
-      {
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+  for (const adf of adfList) {
+    try {
+      await axios.post(
+        url,
+        { body: adf },
+        {
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
         }
-      }
-    );
-  } catch (err) {
-    const status = err.response ? err.response.status : 'network error';
-    const detail = err.response ? JSON.stringify(err.response.data) : err.message;
-    throw new Error(`Jira postComment failed for issue "${issueKey}" — ${status}: ${detail}`);
+      );
+    } catch (err) {
+      const status = err.response ? err.response.status : 'network error';
+      const detail = err.response ? JSON.stringify(err.response.data) : err.message;
+      throw new Error(`Jira postComment failed for issue "${issueKey}" — ${status}: ${detail}`);
+    }
   }
 }
 
@@ -355,4 +501,4 @@ async function fetchWatchers(jiraBaseUrl, email, apiToken, issueKey) {
   }
 }
 
-module.exports = { postComment, buildCommentAdf, fetchWatchers };
+module.exports = { postComment, buildCommentAdf, buildCommentAdfList, chunkAdfDocument, fetchWatchers, buildCommentsSection };
